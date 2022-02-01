@@ -1,0 +1,13 @@
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+name: PR checks
+jobs:
+  go-checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: gofmt
+      uses: gametimesf/github-actions/go/fmt@v0.5.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
