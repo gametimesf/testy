@@ -1,4 +1,4 @@
-package template_library
+package testy
 
 import (
 	"testing"
