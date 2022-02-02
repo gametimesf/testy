@@ -26,4 +26,4 @@ test-coverage: lint
 .PHONY: fmt
 fmt:
 	go fmt ./...
-	find . -name '*.go' -exec gci -w -local github.com/gametimesf/template_library {} \; > /dev/null
+	find . -name '*.go' -exec gci -w -local github.com/gametimesf/testy {} \; > /dev/null
