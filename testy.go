@@ -9,7 +9,7 @@ import (
 )
 
 type testy struct {
-	// TODO hierarchy?
+	// TODO hierarchy? need an ordered map, this is shortly on TODO list and also why 1.18beta in use for generics
 	tests []*Test
 }
 
@@ -51,7 +51,8 @@ func RegisterTest(name string, tester Tester) interface{} {
 	if n > 0 {
 		frames := runtime.CallersFrames(callers)
 		frame, _ := frames.Next()
-		// remove the function name (which is almost certainly "init") and leave just the package name
+		// remove the function name (which is almost certainly "init") and leave just the package name.
+		// as an example, this function is `github.com/gametimesf/testy.RegisterTest`.
 		i := strings.LastIndex(frame.Function, ".")
 		pkg = frame.Function[:i]
 	}
