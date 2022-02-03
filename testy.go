@@ -6,11 +6,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/gametimesf/testy/orderedmap"
 )
 
 type testy struct {
-	// TODO hierarchy? need an ordered map, this is shortly on TODO list and also why 1.18beta in use for generics
-	tests []*Test
+	tests orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, *Test]]
 }
 
 var instance testy
@@ -41,6 +42,8 @@ type Test struct {
 	Failed bool
 }
 
+var regLock sync.Mutex
+
 func RegisterTest(name string, tester Tester) interface{} {
 	// we only care about our immediate caller
 	callers := make([]uintptr, 1)
@@ -57,11 +60,24 @@ func RegisterTest(name string, tester Tester) interface{} {
 		pkg = frame.Function[:i]
 	}
 
-	instance.tests = append(instance.tests, &Test{
+	regLock.Lock()
+	defer regLock.Unlock()
+	if instance.tests == nil {
+		instance.tests = make(orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, *Test]])
+	}
+	if instance.tests[pkg] == nil {
+		instance.tests[pkg] = make(orderedmap.OrderedMap[string, *Test])
+	}
+
+	if _, exists := instance.tests[pkg][name]; exists {
+		panic(fmt.Sprintf("test %s already exists in package %s", name, pkg))
+	}
+
+	instance.tests[pkg][name] = &Test{
 		Package: pkg,
 		Name:    name,
 		tester:  tester,
-	})
+	}
 
 	return nil
 }
@@ -73,11 +89,13 @@ func RegisterTest(name string, tester Tester) interface{} {
 // shared between test packages, put them in their own package which does not contain any test definitions.
 func RunAsTest(t *testing.T) {
 	t.Helper()
-	for _, test := range instance.tests {
-		t.Run(test.Name, func(tt *testing.T) {
-			tt.Helper()
-			test.tester(tt)
-		})
+	for _, tests := range instance.tests {
+		for _, test := range tests {
+			t.Run(test.Name, func(tt *testing.T) {
+				tt.Helper()
+				test.tester(tt)
+			})
+		}
 	}
 }
 
@@ -85,27 +103,30 @@ func RunAsTest(t *testing.T) {
 //
 // TODO: ability to filter for specific packages and tests
 // TODO: channel for results to support progressive progress loading? or some sort of ID and background processing?
-func Run() []*Test {
-	for _, test := range instance.tests {
-		t := &T{name: test.Name}
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		// run in another goroutine so FailNow can work
-		go func() {
-			defer func() {
-				// catch panics and mark test as failed
-				if err := recover(); err != nil {
-					t.msgs = append(t.msgs, fmt.Sprintf("panic: %+v", err))
-					t.failed = true
-				}
+func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, *Test]] {
+	for _, tests := range instance.tests {
+		for _, test := range tests {
 
-				wg.Done()
+			t := &T{name: test.Name}
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			// run in another goroutine so FailNow can work
+			go func() {
+				defer func() {
+					// catch panics and mark test as failed
+					if err := recover(); err != nil {
+						t.msgs = append(t.msgs, fmt.Sprintf("panic: %+v", err))
+						t.failed = true
+					}
+
+					wg.Done()
+				}()
+				test.tester(t)
 			}()
-			test.tester(t)
-		}()
-		wg.Wait()
-		test.Msgs = t.msgs
-		test.Failed = t.failed
+			wg.Wait()
+			test.Msgs = t.msgs
+			test.Failed = t.failed
+		}
 	}
 
 	return instance.tests
