@@ -1,8 +1,4 @@
-ifeq ($(TRAVIS), true)
-	GO := go
-else
-	GO := go1.18beta2
-endif
+GO := go1.18beta2
 
 .PHONY: lint
 lint:
