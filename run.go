@@ -16,9 +16,7 @@ import (
 func RunAsTest(t *testing.T) {
 	t.Helper()
 	instance.tests.Iterate(func(pkg string, tests orderedmap.OrderedMap[string, testCase]) bool {
-		// for _, tests := range instance.tests {
 		tests.Iterate(func(name string, test testCase) bool {
-			// for _, test := range tests {
 			t.Run(test.Name, func(tt *testing.T) {
 				tt.Helper()
 				test.tester(tWrapper{t: tt})
