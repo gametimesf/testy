@@ -9,7 +9,7 @@ lint:
 	golangci-lint run
 
 .PHONY: test
-test: # lint
+test: # lint # TODO add lint back when golangci-lint supports type parameters
 	${GO} vet ./...
 	${GO} test --race --cover $$(${GO} list ./...)
 
