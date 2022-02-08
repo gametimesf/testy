@@ -6,11 +6,12 @@ import (
 )
 
 type T struct {
-	name     string
-	tester   Tester
-	failed   bool
-	msgs     []Msg
-	subtests chan<- subtest
+	name        string
+	tester      Tester
+	failed      bool
+	msgs        []Msg
+	subtests    chan<- subtest
+	subtestDone <-chan struct{}
 }
 
 type subtest struct {
@@ -79,4 +80,5 @@ func (t *T) Run(name string, tester Tester) {
 		name:   name,
 		tester: tester,
 	}
+	<-t.subtestDone
 }

@@ -158,11 +158,24 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 
 func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
 	subtests := make(chan subtest)
+	subtestDone := make(chan struct{})
 	t := &T{
-		name:     baseName,
-		tester:   tester,
-		subtests: subtests,
+		name:        baseName,
+		tester:      tester,
+		subtests:    subtests,
+		subtestDone: subtestDone,
 	}
+
+	stWg := sync.WaitGroup{}
+	stWg.Add(1)
+
+	go func() {
+		defer stWg.Done()
+		for st := range subtests {
+			runTest(pkg, baseName+"/"+st.name, st.tester, results)
+			subtestDone <- struct{}{}
+		}
+	}()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -173,14 +186,18 @@ func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
 		defer wg.Done()
 		t.run()
 	}()
+	// wait for original test to finish
 	wg.Wait()
+	close(subtests)
+	stWg.Wait()
+	close(subtestDone)
 	dur := time.Now().Sub(start)
 
 	// TODO handle t.Run calls and recurse
 
 	results <- TestResult{
 		Package: pkg,
-		Name:    t.name,
+		Name:    baseName,
 		Msgs:    t.msgs,
 		Passed:  !t.failed,
 		Dur:     dur,
