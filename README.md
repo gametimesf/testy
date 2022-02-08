@@ -1,3 +1,5 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/gametimesf/testy.svg)](https://pkg.go.dev/github.com/gametimesf/testy)
+
 # Testy
 
 Docs incoming :)
