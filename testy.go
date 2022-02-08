@@ -188,7 +188,8 @@ func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
 	}()
 	// wait for original test to finish
 	wg.Wait()
-	close(subtests)
+	// this shouldn't be needed since the test actually waits for the subtest to complete before continuing, but it
+	// doesn't hurt to be careful
 	stWg.Wait()
 	close(subtestDone)
 	dur := time.Now().Sub(start)
