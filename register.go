@@ -11,8 +11,10 @@ import (
 
 var regLock sync.Mutex
 
-// RegisterTest registers a new test to be run. Tests are run in lexicographical order within a package. The return
-// value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
+// RegisterTest registers a new test to be run. Tests are run in lexicographical order within a package.
+// TODO: support the -shuffle testflag.
+//
+// The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
 //    var _ = testy.RegisterTest("my test", func(t testy.TestingT){})
 func RegisterTest(name string, tester Tester) any {
