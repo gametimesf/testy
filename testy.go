@@ -6,19 +6,20 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gametimesf/testy/orderedmap"
 )
 
 type testy struct {
-	tests orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, *Test]]
+	tests orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, testCase]]
 }
 
 var instance testy
 
 // TestingT is a subset of testing.T that we have to implement for non-`go test` runs.
 //
-// TODO flesh this out with more useful stuff from testing.T
+// TODO flesh this out with more useful stuff from testing.T -- Parallel would be nice but tricky
 type TestingT interface {
 	Fail()
 	FailNow()
@@ -29,22 +30,40 @@ type TestingT interface {
 	Log(args ...interface{})
 	Logf(format string, args ...interface{})
 	Name() string
+	Run(string, Tester)
 }
 
 type Tester func(t TestingT)
 
-type Test struct {
+type testCase struct {
 	Package string
 	Name    string
 	tester  Tester
-	// TODO better results
-	Msgs   []string
-	Failed bool
+}
+
+type Level string
+
+const (
+	LevelInfo  Level = "info"
+	LevelError Level = "error"
+)
+
+type Msg struct {
+	Msg   string
+	Level Level
+}
+
+type TestResult struct {
+	Package string
+	Name    string
+	Msgs    []Msg
+	Passed  bool
+	Dur     time.Duration
 }
 
 var regLock sync.Mutex
 
-func RegisterTest(name string, tester Tester) interface{} {
+func RegisterTest(name string, tester Tester) any {
 	// we only care about our immediate caller
 	callers := make([]uintptr, 1)
 	// skip over Callers and ourselves
@@ -63,17 +82,17 @@ func RegisterTest(name string, tester Tester) interface{} {
 	regLock.Lock()
 	defer regLock.Unlock()
 	if instance.tests == nil {
-		instance.tests = make(orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, *Test]])
+		instance.tests = make(orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, testCase]])
 	}
 	if instance.tests[pkg] == nil {
-		instance.tests[pkg] = make(orderedmap.OrderedMap[string, *Test])
+		instance.tests[pkg] = make(orderedmap.OrderedMap[string, testCase])
 	}
 
 	if _, exists := instance.tests[pkg][name]; exists {
 		panic(fmt.Sprintf("test %s already exists in package %s", name, pkg))
 	}
 
-	instance.tests[pkg][name] = &Test{
+	instance.tests[pkg][name] = testCase{
 		Package: pkg,
 		Name:    name,
 		tester:  tester,
@@ -89,45 +108,81 @@ func RegisterTest(name string, tester Tester) interface{} {
 // shared between test packages, put them in their own package which does not contain any test definitions.
 func RunAsTest(t *testing.T) {
 	t.Helper()
-	for _, tests := range instance.tests {
-		for _, test := range tests {
+	instance.tests.Iterate(func(pkg string, tests orderedmap.OrderedMap[string, testCase]) bool {
+		// for _, tests := range instance.tests {
+		tests.Iterate(func(name string, test testCase) bool {
+			// for _, test := range tests {
 			t.Run(test.Name, func(tt *testing.T) {
 				tt.Helper()
-				test.tester(tt)
+				test.tester(tWrapper{t: tt})
 			})
-		}
-	}
+			return true
+		})
+		return true
+	})
 }
 
 // Run runs all registered tests and returns result information about them.
 //
 // TODO: ability to filter for specific packages and tests
-// TODO: channel for results to support progressive progress loading? or some sort of ID and background processing?
-func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, *Test]] {
-	for _, tests := range instance.tests {
-		for _, test := range tests {
+// TODO: channel for results to support progressive result loading?
+func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResult]] {
+	results := make(orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResult]])
 
-			t := &T{name: test.Name}
+	instance.tests.Iterate(func(pkg string, tests orderedmap.OrderedMap[string, testCase]) bool {
+		results[pkg] = make(orderedmap.OrderedMap[string, TestResult])
+		tests.Iterate(func(name string, test testCase) bool {
+
+			res := make(chan TestResult)
+
 			wg := sync.WaitGroup{}
 			wg.Add(1)
-			// run in another goroutine so FailNow can work
 			go func() {
-				defer func() {
-					// catch panics and mark test as failed
-					if err := recover(); err != nil {
-						t.msgs = append(t.msgs, fmt.Sprintf("panic: %+v", err))
-						t.failed = true
-					}
-
-					wg.Done()
-				}()
-				test.tester(t)
+				defer wg.Done()
+				for r := range res {
+					results[pkg][r.Name] = r
+				}
 			}()
+
+			runTest(pkg, test.Name, test.tester, res)
+			close(res)
 			wg.Wait()
-			test.Msgs = t.msgs
-			test.Failed = t.failed
-		}
+
+			return true
+		})
+		return true
+	})
+
+	return results
+}
+
+func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
+	subtests := make(chan subtest)
+	t := &T{
+		name:     baseName,
+		tester:   tester,
+		subtests: subtests,
 	}
 
-	return instance.tests
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	start := time.Now()
+	// run in another goroutine so FailNow can work
+	go func() {
+		defer wg.Done()
+		t.run()
+	}()
+	wg.Wait()
+	dur := time.Now().Sub(start)
+
+	// TODO handle t.Run calls and recurse
+
+	results <- TestResult{
+		Package: pkg,
+		Name:    t.name,
+		Msgs:    t.msgs,
+		Passed:  !t.failed,
+		Dur:     dur,
+	}
 }
