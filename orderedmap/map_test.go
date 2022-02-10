@@ -1,10 +1,10 @@
 package orderedmap
 
 import (
-	"testing"
+	"fmt"
 )
 
-func TestOrderedMap(t *testing.T) {
+func ExampleOrderedMap() {
 	m := OrderedMap[int, string]{}
 	m[2] = "two"
 	m[3] = "three"
@@ -13,18 +13,15 @@ func TestOrderedMap(t *testing.T) {
 	m[0] = "zero"
 	m[4] = "four"
 
-	i := 0
-	pass := true
 	m.Iterate(func(k int, v string) bool {
-		if k != i {
-			t.Errorf("Expected %d, got %d", i, k)
-			pass = false
-			return false
-		}
-		i++
-		return true
+		fmt.Println(v)
+		return k != 4
 	})
-	if !pass {
-		t.Failed()
-	}
+
+	// Output:
+	// zero
+	// one
+	// two
+	// three
+	// four
 }
