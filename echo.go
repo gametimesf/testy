@@ -13,5 +13,6 @@ func AddEchoRoutes(router *echo.Group) {
 
 func runTests(c echo.Context) error {
 	results := Run()
+	// TODO convert results into a better format?
 	return c.JSON(http.StatusOK, results)
 }

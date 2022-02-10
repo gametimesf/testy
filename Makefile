@@ -1,29 +1,31 @@
+GO := go1.18beta2
+
 .PHONY: lint
 lint:
 	golangci-lint run
 
 .PHONY: test
-test: lint
-	go vet ./...
-	go test --race --cover $$(go list ./...)
+test: # lint # TODO add lint back when golangci-lint supports type parameters
+	${GO} vet ./...
+	${GO} test --race --cover $$(${GO} list ./...)
 
 .PHONY: docs
 docs:
-	go generate $$(go list ./...)
+	${GO} generate $$(${GO} list ./...)
 
 .PHONY: tidy
 tidy:
-	go mod tidy
+	${GO} mod tidy
 
 .PHONY: test-coverage
 test-coverage: lint
-	go vet ./...
+	${GO} vet ./...
 	COVEROUT=$$(mktemp)
-	go test -coverprofile="$COVEROUT" $$(go list ./...)
-	go tool cover -html="$COVEROUT"
+	${GO} test -coverprofile="$COVEROUT" $$(go list ./...)
+	${GO} tool cover -html="$COVEROUT"
 	rm -f "$COVEROUT"
 
 .PHONY: fmt
 fmt:
-	go fmt ./...
+	${GO} fmt ./...
 	find . -name '*.go' -exec gci -w -local github.com/gametimesf/testy {} \; > /dev/null
