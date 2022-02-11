@@ -112,6 +112,7 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 
 		// we still have to iterate even if there was a BeforePackage panic to be able to fail all the tests
 		pkgTests.tests.Iterate(func(name string, test testCase) bool {
+			// only run the tests if BeforePackage didn't panic
 			if beforePkgErr == nil {
 				testHelperT := &t{}
 

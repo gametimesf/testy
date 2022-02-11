@@ -18,10 +18,13 @@ func getCallerPackage() string {
 	if n > 0 {
 		frames := runtime.CallersFrames(callers)
 		frame, _ := frames.Next()
+		// skip to after the package.
+		i := strings.LastIndex(frame.Function, "/")
 		// remove the function name (which is almost certainly "init") and leave just the package name.
 		// as an example, this function is `github.com/gametimesf/testy.RegisterTest`.
-		i := strings.LastIndex(frame.Function, ".")
-		pkg = frame.Function[:i]
+		// we cannot just do LastIndex for . because anonymous functions will end up with multiple . in their name
+		j := strings.Index(frame.Function[:i], ".")
+		pkg = frame.Function[:i+j]
 	}
 	return pkg
 }
@@ -55,6 +58,10 @@ func getPackageTests(pkg string) *testPkg {
 //
 //    var _ = testy.Test("my test", func(t testy.TestingT){})
 func Test(name string, tester Tester) any {
+	if tester == nil {
+		panic(fmt.Sprintf("test %s has nil test function", name))
+	}
+
 	name = strings.Map(stripName, name)
 	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)
