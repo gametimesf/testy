@@ -37,7 +37,7 @@ type runTC struct {
 	afterTest     Tester
 	afterPackage  Tester
 	test          Tester
-	validate      func(*testing.T, *TestResult)
+	validate      func(*testing.T, TestResult)
 }
 
 var runTCs = []runTC{
@@ -48,19 +48,15 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
 			assert.NotZero(t, tt)
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			// we only get a test result for Run. I don't think we need to validate anything but helper execution order
-			// for RunAsTest since that is relying on the testing package to do the heavy lifting.
-			if tr != nil {
-				assert.True(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 0)
-			}
+			assert.True(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 0)
 		},
 	},
 	{
@@ -70,17 +66,15 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          fails(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
 			assert.NotZero(t, tt)
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			if tr != nil {
-				assert.False(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 1)
-			}
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 1)
 		},
 	},
 	{
@@ -90,17 +84,15 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          panics(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
 			assert.NotZero(t, tt)
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			if tr != nil {
-				assert.False(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 1)
-			}
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 1)
 		},
 	},
 	{
@@ -110,17 +102,15 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
 			assert.True(t, tt.After(bt))
 			assert.True(t, at.After(tt))
 			assert.True(t, ap.After(at))
 
-			if tr != nil {
-				assert.True(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 0)
-			}
+			assert.True(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 0)
 		},
 	},
 	{
@@ -130,17 +120,15 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          fails(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
 			assert.True(t, tt.After(bt))
 			assert.True(t, at.After(tt))
 			assert.True(t, ap.After(at))
 
-			if tr != nil {
-				assert.False(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 1)
-			}
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 1)
 		},
 	},
 	{
@@ -150,17 +138,15 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          panics(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
 			assert.True(t, tt.After(bt))
 			assert.True(t, at.After(tt))
 			assert.True(t, ap.After(at))
 
-			if tr != nil {
-				assert.False(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 1)
-			}
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 1)
 		},
 	},
 	{
@@ -170,17 +156,15 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.Zero(t, bt)
 			assert.True(t, tt.After(bp))
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			if tr != nil {
-				assert.True(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 0)
-			}
+			assert.True(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 0)
 		},
 	},
 	{
@@ -190,17 +174,15 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.NotZero(t, bt)
 			assert.True(t, tt.After(bt))
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			if tr != nil {
-				assert.True(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 0)
-			}
+			assert.True(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 0)
 		},
 	},
 	{
@@ -210,17 +192,15 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  nil,
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
 			assert.NotZero(t, tt)
 			assert.True(t, at.After(tt))
 			assert.Zero(t, ap)
 
-			if tr != nil {
-				assert.True(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 0)
-			}
+			assert.True(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 0)
 		},
 	},
 	{
@@ -230,17 +210,15 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
 			assert.NotZero(t, tt)
 			assert.Zero(t, at)
 			assert.True(t, ap.After(tt))
 
-			if tr != nil {
-				assert.True(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 0)
-			}
+			assert.True(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 0)
 		},
 	},
 	{
@@ -250,17 +228,15 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.Zero(t, bt)
 			assert.Zero(t, tt)
 			assert.Zero(t, at)
 			assert.True(t, ap.After(bp))
 
-			if tr != nil {
-				assert.False(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 1)
-			}
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 1)
 		},
 	},
 	{
@@ -270,17 +246,15 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
-		validate: func(t *testing.T, tr *TestResult) {
+		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
 			assert.Zero(t, tt)
 			assert.True(t, at.After(bt))
 			assert.True(t, ap.After(at))
 
-			if tr != nil {
-				assert.False(t, tr.Passed)
-				assert.Len(t, tr.Msgs, 1)
-			}
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 1)
 		},
 	},
 }
@@ -318,8 +292,7 @@ func TestRun(t *testing.T) {
 			// I'm not able to think of it right now.
 
 			res := Run()
-			tr := res["github.com/gametimesf/testy"][strings.Map(stripName, tc.name)]
-			tc.validate(t, &tr)
+			tc.validate(t, res["github.com/gametimesf/testy"][strings.Map(stripName, tc.name)])
 		})
 	}
 }
