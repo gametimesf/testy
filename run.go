@@ -222,7 +222,7 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 					Passed:  false,
 					Dur:     result.Dur,
 					Msgs: append(result.Msgs, append(pkgHelperT.msgs, Msg{
-						Msg:   fmt.Sprintf("%v", beforePkgErr),
+						Msg:   fmt.Sprintf("%v", afterPkgErr),
 						Level: LevelError,
 					})...),
 				}
