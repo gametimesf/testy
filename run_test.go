@@ -240,7 +240,25 @@ var runTCs = []runTC{
 		},
 	},
 	{
-		name:          "panic before test does not test but calls after test",
+		name:          "panic before package does not call before/after test or test but calls after package which also panics",
+		beforePackage: panics(&bp),
+		beforeTest:    succeeds(&bt),
+		afterTest:     succeeds(&at),
+		afterPackage:  panics(&ap),
+		test:          succeeds(&tt),
+		validate: func(t *testing.T, tr TestResult) {
+			assert.NotZero(t, bp)
+			assert.Zero(t, bt)
+			assert.Zero(t, tt)
+			assert.Zero(t, at)
+			assert.True(t, ap.After(bp))
+
+			assert.False(t, tr.Passed)
+			assert.Len(t, tr.Msgs, 2)
+		},
+	},
+	{
+		name:          "panic before test does not call test but calls after test",
 		beforePackage: succeeds(&bp),
 		beforeTest:    panics(&bt),
 		afterTest:     succeeds(&at),

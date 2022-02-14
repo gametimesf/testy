@@ -92,6 +92,9 @@ func Test(name string, tester Tester) any {
 // Tester is marked as failed. When run via RunAsTest, the standard `go test` output rules apply. Notably, if a test
 // fails, the output is not visible via Run but is via RunAsTest.
 //
+// NOTE: Do not call TestingT.Fail, TestingT.FailNow, TestingT.Fatal, or TestingT.Fatalf in BeforePackage to report
+// errors; always panic. It will work as expected in RunAsTest mode, but not Run mode. TODO parity here.
+//
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
 //    var _ = testy.BeforePackage(func(){})
@@ -115,11 +118,14 @@ func BeforePackage(f Tester) any {
 //
 // If RunAsTest was called, the panic will be reported as the top-level bootstrap test for the package. If Run was
 // called, every test in the package will be marked as failed, and the panic's message will be appended to every test's
-// own messages.
+// own messages or the BeforePackage panic that replaced every test.
 //
 // When run via Run, any logging output to the provided Tester will only be visible if AfterPackage panics or the
 // Tester is marked as failed. When run via RunAsTest, the standard `go test` output rules apply. Notably, if a test
-// // fails, the output is not visible via Run but is via RunAsTest.
+// fails, the output is not visible via Run but is via RunAsTest.
+//
+// NOTE: Do not call TestingT.Fail, TestingT.FailNow, TestingT.Fatal, or TestingT.Fatalf in AfterPackage to report
+// errors; always panic. It will work as expected in RunAsTest mode, but not Run mode. TODO parity here.
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
@@ -144,7 +150,10 @@ func AfterPackage(f Tester) any {
 //
 // When run via Run, any logging output to the provided Tester will only be visible if BeforeTest panics or the
 // Tester is marked as failed. When run via RunAsTest, the standard `go test` output rules apply. Notably, if a test
-// // fails, the output is not visible via Run but is via RunAsTest.
+// fails, the output is not visible via Run but is via RunAsTest.
+//
+// NOTE: Do not call TestingT.Fail, TestingT.FailNow, TestingT.Fatal, or TestingT.Fatalf in BeforeTest to report
+// errors; always panic. It will work as expected in RunAsTest mode, but not Run mode. TODO parity here.
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
@@ -169,7 +178,10 @@ func BeforeTest(f Tester) any {
 //
 // When run via Run, any logging output to the provided Tester will only be visible if AfterTest panics or the
 // Tester is marked as failed. When run via RunAsTest, the standard `go test` output rules apply. Notably, if a test
-// // fails, the output is not visible via Run but is via RunAsTest.
+// fails, the output is not visible via Run but is via RunAsTest.
+//
+// NOTE: Do not call TestingT.Fail, TestingT.FailNow, TestingT.Fatal, or TestingT.Fatalf in AfterTest to report
+// errors; always panic. It will work as expected in RunAsTest mode, but not Run mode. TODO parity here.
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //

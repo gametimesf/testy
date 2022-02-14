@@ -212,8 +212,8 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 			}()
 		}
 
-		// only update test results if AfterPackage panicked and BeforePackage did not
-		if beforePkgErr == nil && afterPkgErr != nil {
+		// update test results if AfterPackage panicked
+		if afterPkgErr != nil {
 			newResults := make(orderedmap.OrderedMap[string, TestResult])
 			results[pkg].Iterate(func(test string, result TestResult) bool {
 				newResults[test] = TestResult{
