@@ -6,8 +6,16 @@ jobs:
   go-checks:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.18.0-beta2
+        stable: false
+    - name: Checkout code
+      uses: actions/checkout@v2
     - name: gofmt
-      uses: gametimesf/github-actions/go/fmt@v0.5.1
+      uses: gametimesf/github-actions/go/fmt@1.18rc
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Test
+      run: go test -cover -race ./...

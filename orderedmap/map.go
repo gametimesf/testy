@@ -1,8 +1,9 @@
 package orderedmap
 
 import (
-	"constraints"
 	"sort"
+
+	"golang.org/x/exp/constraints"
 )
 
 // OrderedMap is a map that can be iterated in the natural order of its keys.

@@ -3,6 +3,7 @@ package testy
 import (
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 type t struct {
@@ -20,6 +21,11 @@ type subtest struct {
 }
 
 var _ TestingT = (*t)(nil)
+
+// test returns whether this t is actually being used in a test. This is determined by the tester func being non-nil.
+func (t *t) test() bool {
+	return t.tester != nil
+}
 
 func (t *t) run() {
 	defer func() {
@@ -40,8 +46,12 @@ func (t *t) Fail() {
 }
 
 func (t *t) FailNow() {
-	t.failed = true
-	runtime.Goexit()
+	t.Fail()
+	if t.test() {
+		runtime.Goexit()
+	} else {
+		panic("before/after helper t failed")
+	}
 }
 
 func (t *t) Fatal(args ...interface{}) {
@@ -76,8 +86,11 @@ func (t *t) Name() string {
 }
 
 func (t *t) Run(name string, tester Tester) {
+	if !t.test() {
+		panic("attempting to run subtest on non-subtest-capable T (you can only Run in Tests, not Before/After)")
+	}
 	t.subtests <- subtest{
-		name:   name,
+		name:   strings.Map(stripName, name),
 		tester: tester,
 	}
 	<-t.subtestDone
