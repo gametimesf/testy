@@ -1,4 +1,4 @@
-GO := go1.18beta2
+GO := go1.18rc1
 
 .PHONY: lint
 lint:

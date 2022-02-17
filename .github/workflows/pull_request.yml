@@ -9,12 +9,12 @@ jobs:
     - name: Install Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.18.0-beta2
+        go-version: 1.18.0-rc1
         stable: false
     - name: Checkout code
       uses: actions/checkout@v2
     - name: gofmt
-      uses: gametimesf/github-actions/go/fmt@1.18rc
+      uses: gametimesf/github-actions/go/fmt@v0.6.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Test
