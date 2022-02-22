@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEach(t *testing.T) {
+func TestTestEach(t *testing.T) {
 	var run []string
-	Each(tWrapper{t: t}, []string{"a", "b", "c"}, func(t TestingT, s string) {
+	TestEach(tWrapper{t: t}, []string{"a", "b", "c"}, func(t TestingT, s string) {
 		run = append(run, s)
 	})
 
