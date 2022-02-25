@@ -90,6 +90,7 @@ func Run() TestResult {
 	start := time.Now()
 	anyFailures := false
 
+	// TODO run packages in parallel like go test does
 	instance.tests.Iterate(func(pkg string, pkgTests *testPkg) bool {
 		pkgStart := time.Now()
 		results.Subtests = append(results.Subtests, TestResult{
