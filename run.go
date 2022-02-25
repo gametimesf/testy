@@ -153,10 +153,11 @@ func Run() TestResult {
 				} else {
 					pkgAnyFailures = true
 					pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
-						Package: pkg,
-						Name:    name,
-						Result:  ResultFailed,
-						Dur:     0,
+						Package:  pkg,
+						Name:     name,
+						Result:   ResultFailed,
+						Dur:      0,
+						DurHuman: "0s",
 						Msgs: append(testHelperT.msgs, Msg{
 							Msg:   fmt.Sprintf("%v", beforeTestErr),
 							Level: LevelError,
@@ -190,10 +191,11 @@ func Run() TestResult {
 				pkgAnyFailures = true
 				// BeforePackage panicked, so simply mark the test as failed with its message
 				pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
-					Package: pkg,
-					Name:    name,
-					Result:  ResultFailed,
-					Dur:     0,
+					Package:  pkg,
+					Name:     name,
+					Result:   ResultFailed,
+					Dur:      0,
+					DurHuman: "0s",
 					Msgs: append(pkgHelperT.msgs, Msg{
 						Msg:   fmt.Sprintf("%v", beforePkgErr),
 						Level: LevelError,
@@ -237,7 +239,9 @@ func Run() TestResult {
 			anyFailures = true
 		}
 		pkgResults.Result = r
-		pkgResults.Dur = time.Now().Sub(pkgStart)
+		dur := time.Now().Sub(pkgStart)
+		pkgResults.Dur = dur
+		pkgResults.DurHuman = dur.String()
 
 		return true
 	})
@@ -247,7 +251,9 @@ func Run() TestResult {
 		r = ResultFailed
 	}
 	results.Result = r
-	results.Dur = time.Now().Sub(start)
+	dur := time.Now().Sub(start)
+	results.Dur = dur
+	results.DurHuman = dur.String()
 	return results
 }
 
@@ -307,5 +313,6 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	result.Msgs = t.msgs
 	result.Result = r
 	result.Dur = dur
+	result.DurHuman = dur.String()
 	return result
 }
