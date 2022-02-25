@@ -86,7 +86,9 @@ func RunAsTest(t *testing.T) {
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
 // TODO: channel for results to support progressive result loading?
 func Run() TestResult {
-	results := TestResult{}
+	results := TestResult{
+		Name: "Test Suite",
+	}
 	start := time.Now()
 	anyFailures := false
 
