@@ -3,7 +3,7 @@ package testy
 import (
 	"time"
 
-	"github.com/gametimesf/testy/orderedmap"
+	"github.com/gametimesf/testy/internal/orderedmap"
 )
 
 type testy struct {
@@ -28,11 +28,12 @@ type testCase struct {
 type Tester func(t TestingT)
 
 type TestResult struct {
-	Package string
-	Name    string
-	Msgs    []Msg
-	Passed  bool
-	Dur     time.Duration
+	Package  string
+	Name     string
+	Msgs     []Msg
+	Result   Result
+	Dur      time.Duration
+	Subtests []TestResult
 }
 
 type Level string
@@ -40,6 +41,13 @@ type Level string
 const (
 	LevelInfo  Level = "info"
 	LevelError Level = "error"
+)
+
+type Result string
+
+const (
+	ResultPassed Result = "passed"
+	ResultFailed Result = "failed"
 )
 
 type Msg struct {

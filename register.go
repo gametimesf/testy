@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gametimesf/testy/orderedmap"
+	"github.com/gametimesf/testy/internal/orderedmap"
 )
 
 func getCallerPackage() string {
