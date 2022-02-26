@@ -242,7 +242,7 @@ func Run() TestResult {
 			anyFailures = true
 		}
 		pkgResults.Result = r
-		dur := time.Now().Sub(pkgStart)
+		dur := time.Now().Sub(pkgStart).Round(time.Millisecond)
 		pkgResults.Dur = dur
 		pkgResults.DurHuman = dur.String()
 
@@ -254,7 +254,7 @@ func Run() TestResult {
 		r = ResultFailed
 	}
 	results.Result = r
-	dur := time.Now().Sub(start)
+	dur := time.Now().Sub(start).Round(time.Millisecond)
 	results.Dur = dur
 	results.DurHuman = dur.String()
 	return results
@@ -307,7 +307,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	// doesn't hurt to be careful
 	stWg.Wait()
 	close(subtestDone)
-	dur := time.Now().Sub(start)
+	dur := time.Now().Sub(start).Round(time.Millisecond)
 
 	r := ResultPassed
 	if t.failed || anyFailures {
