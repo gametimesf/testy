@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // know that before/after package/test and the test itself have run and when they were run
@@ -82,10 +83,10 @@ var runTCs = []runTC{
 			assert.Zero(t, ap)
 
 			assert.Equal(t, ResultPassed, tr.Result)
-			if assert.Len(t, tr.Subtests, 1) {
-				assert.Equal(t, ResultPassed, tr.Subtests[0].Result)
-				assert.Len(t, tr.Subtests[0].Msgs, 0)
-			}
+
+			require.Len(t, tr.Subtests, 1)
+			assert.Equal(t, ResultPassed, tr.Subtests[0].Result)
+			assert.Len(t, tr.Subtests[0].Msgs, 0)
 		},
 	},
 	{
@@ -123,10 +124,10 @@ var runTCs = []runTC{
 			assert.Zero(t, ap)
 
 			assert.Equal(t, ResultFailed, tr.Result)
-			if assert.Len(t, tr.Subtests, 1) {
-				assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
-				assert.Len(t, tr.Subtests[0].Msgs, 1)
-			}
+
+			require.Len(t, tr.Subtests, 1)
+			assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
+			assert.Len(t, tr.Subtests[0].Msgs, 1)
 		},
 	},
 	{
@@ -164,10 +165,10 @@ var runTCs = []runTC{
 			assert.Zero(t, ap)
 
 			assert.Equal(t, ResultFailed, tr.Result)
-			if assert.Len(t, tr.Subtests, 1) {
-				assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
-				assert.Len(t, tr.Subtests[0].Msgs, 1)
-			}
+
+			require.Len(t, tr.Subtests, 1)
+			assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
+			assert.Len(t, tr.Subtests[0].Msgs, 1)
 		},
 	},
 	{
@@ -396,10 +397,11 @@ func TestRun(t *testing.T) {
 
 			res := Run()
 			assert.Equal(t, tc.rootResult, res.Result)
-			if assert.Len(t, res.Subtests, 1) && assert.Len(t, res.Subtests[0].Subtests, 1) {
-				// look into the test suite results and the package results
-				tc.validate(t, res.Subtests[0].Subtests[0])
-			}
+
+			require.Len(t, res.Subtests, 1)
+			require.Len(t, res.Subtests[0].Subtests, 1)
+			// look into the test suite results and the package results
+			tc.validate(t, res.Subtests[0].Subtests[0])
 		})
 	}
 }
