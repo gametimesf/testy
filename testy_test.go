@@ -141,12 +141,6 @@ func TestFindFailingTests(t *testing.T) {
 		assert.Len(t, failed, 0)
 	})
 
-	t.Run("tree 4", func(t *testing.T) {
-		failed := testResultTestData.Subtests[3].FindFailingTests()
-		require.Len(t, failed, 1)
-		assert.Equal(t, "tree 4", failed[0].Name)
-	})
-
 	t.Run("tree 2 intermediate 1", func(t *testing.T) {
 		failed := testResultTestData.Subtests[1].Subtests[0].FindFailingTests()
 		require.Len(t, failed, 1)
