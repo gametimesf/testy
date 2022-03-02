@@ -87,3 +87,44 @@ func stripName(r rune) rune {
 		return '_'
 	}
 }
+
+// SumTestStats returns the total number of leaf subtests, as well as the number of those that passed and failed.
+func (tr TestResult) SumTestStats() (total, passed, failed int) {
+	if len(tr.Subtests) == 0 {
+		if tr.Result == ResultFailed {
+			return 1, 0, 1
+		} else {
+			return 1, 1, 0
+		}
+	}
+
+	for _, st := range tr.Subtests {
+		t, p, f := st.SumTestStats()
+		total += t
+		passed += p
+		failed += f
+	}
+	return total, passed, failed
+}
+
+// FindFailingTests finds the least deeply nested subtests that have sibling tests that passed.
+// These subtests may be in different branches of subtests.
+// This implies that this test failed; if it did not, then a nil slice is returned.
+// If every subtest of test failed or if test has no subtests, then test itself is returned.
+func (tr TestResult) FindFailingTests() []TestResult {
+	if tr.Result != ResultFailed {
+		return nil
+	}
+
+	total, _, failed := tr.SumTestStats()
+	if total == failed {
+		return []TestResult{tr}
+	}
+
+	// not everything under us has failed, so find what has
+	var res []TestResult
+	for _, st := range tr.Subtests {
+		res = append(res, st.FindFailingTests()...)
+	}
+	return res
+}
