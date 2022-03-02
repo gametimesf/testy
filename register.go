@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gametimesf/testy/orderedmap"
+	"github.com/gametimesf/testy/internal/orderedmap"
 )
 
 func getCallerPackage() string {
@@ -18,15 +18,19 @@ func getCallerPackage() string {
 	if n > 0 {
 		frames := runtime.CallersFrames(callers)
 		frame, _ := frames.Next()
-		// skip to after the package.
-		i := strings.LastIndex(frame.Function, "/")
-		// remove the function name (which is almost certainly "init") and leave just the package name.
-		// as an example, this function is `github.com/gametimesf/testy.RegisterTest`.
-		// we cannot just do LastIndex for . because anonymous functions will end up with multiple . in their name
-		j := strings.Index(frame.Function[:i], ".")
-		pkg = frame.Function[:i+j]
+		pkg = packageAndFuncNameToPackage(frame.Function)
 	}
 	return pkg
+}
+
+func packageAndFuncNameToPackage(full string) string {
+	// skip to after the package.
+	i := strings.LastIndex(full, "/")
+	// remove the function name (which is almost certainly "init") and leave just the package name.
+	// as an example, this function is `github.com/gametimesf/testy.RegisterTest`.
+	// we cannot just do LastIndex for . because anonymous functions will end up with multiple . in their name
+	j := strings.Index(full[i:], ".")
+	return full[:i+j]
 }
 
 // getPackageTests ensures that a testPkg instance exists for the provided package and returns it

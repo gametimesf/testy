@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTestEach(t *testing.T) {
@@ -12,9 +13,8 @@ func TestTestEach(t *testing.T) {
 		run = append(run, s)
 	})
 
-	if assert.Len(t, run, 3) {
-		assert.Equal(t, "a", run[0])
-		assert.Equal(t, "b", run[1])
-		assert.Equal(t, "c", run[2])
-	}
+	require.Len(t, run, 3)
+	assert.Equal(t, "a", run[0])
+	assert.Equal(t, "b", run[1])
+	assert.Equal(t, "c", run[2])
 }

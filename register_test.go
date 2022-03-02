@@ -25,6 +25,11 @@ func TestGetCallerPackage(t *testing.T) {
 	assert.Equal(t, "github.com/gametimesf/testy", pkg)
 }
 
+func TestPackageAndFuncNameToPackage(t *testing.T) {
+	actual := packageAndFuncNameToPackage("github.com/gametimesf/privaterepo/path/to/packagename.init.1.1")
+	assert.Equal(t, "github.com/gametimesf/privaterepo/path/to/packagename", actual)
+}
+
 func TestTest(t *testing.T) {
 	instance = testy{}
 

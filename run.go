@@ -6,8 +6,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/gametimesf/testy/orderedmap"
 )
 
 // RunAsTest runs all registered tests under Go's testing framework. To run tests on a per-package basis, put a test
@@ -87,15 +85,24 @@ func RunAsTest(t *testing.T) {
 // TODO: ability to filter for specific packages and tests
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
 // TODO: channel for results to support progressive result loading?
-// TODO: this really should just be an OrderedMap[string, TestResult] and TestResult should have subtest results, so we
-//       can actually have result information per-package (which is useful for before and after package messages)
-func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResult]] {
-	results := make(orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResult]])
+func Run() TestResult {
+	results := TestResult{
+		Name: "Test Suite",
+	}
+	start := time.Now()
+	anyFailures := false
 
+	// TODO run packages in parallel like go test does
 	instance.tests.Iterate(func(pkg string, pkgTests *testPkg) bool {
-		results[pkg] = make(orderedmap.OrderedMap[string, TestResult])
+		pkgStart := time.Now()
+		results.Subtests = append(results.Subtests, TestResult{
+			Package: pkg,
+			Name:    "Package",
+		})
+		pkgResults := &results.Subtests[len(results.Subtests)-1]
 
 		pkgHelperT := &t{}
+		pkgAnyFailures := false
 
 		// we have to hold onto any panics here to be able to run AfterPackage
 		var beforePkgErr any
@@ -108,6 +115,16 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 				}()
 				pkgTests.BeforePackage(pkgHelperT)
 			}()
+
+			if beforePkgErr != nil {
+				pkgAnyFailures = true
+				pkgResults.Msgs = []Msg{
+					{
+						Msg:   fmt.Sprintf("%v", beforePkgErr),
+						Level: LevelError,
+					},
+				}
+			}
 		}
 
 		// we still have to iterate even if there was a BeforePackage panic to be able to fail all the tests
@@ -131,31 +148,24 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 
 				// only run the tests if any BeforeTest didn't panic
 				if beforeTestErr == nil {
-					res := make(chan TestResult)
-
-					wg := sync.WaitGroup{}
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						for r := range res {
-							results[pkg][r.Name] = r
-						}
-					}()
-
-					runTest(pkg, test.Name, test.tester, res)
-					close(res)
-					wg.Wait()
+					res := runTest(pkg, test.Name, test.tester)
+					if res.Result == ResultFailed {
+						pkgAnyFailures = true
+					}
+					pkgResults.Subtests = append(pkgResults.Subtests, res)
 				} else {
-					results[pkg][name] = TestResult{
-						Package: pkg,
-						Name:    name,
-						Passed:  false,
-						Dur:     0,
+					pkgAnyFailures = true
+					pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
+						Package:  pkg,
+						Name:     name,
+						Result:   ResultFailed,
+						Dur:      0,
+						DurHuman: "0s",
 						Msgs: append(testHelperT.msgs, Msg{
 							Msg:   fmt.Sprintf("%v", beforeTestErr),
 							Level: LevelError,
 						}),
-					}
+					})
 				}
 
 				if pkgTests.AfterTest != nil {
@@ -170,31 +180,30 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 					}()
 
 					if afterTestErr != nil {
-						// replace test results with new one marking it failed and with this panic message.
-						old := results[pkg][name]
-						results[pkg][name] = TestResult{
-							Package: old.Package,
-							Name:    old.Name,
-							Passed:  false,
-							Dur:     old.Dur,
-							Msgs: append(old.Msgs, append(testHelperT.msgs, Msg{
-								Msg:   fmt.Sprintf("%v", afterTestErr),
-								Level: LevelError,
-							})...),
-						}
+						pkgAnyFailures = true
+						// update test results marking it failed and with this panic message.
+						r := &pkgResults.Subtests[len(pkgResults.Subtests)-1]
+						r.Result = ResultFailed
+						r.Msgs = append(r.Msgs, append(testHelperT.msgs, Msg{
+							Msg:   fmt.Sprintf("%v", afterTestErr),
+							Level: LevelError,
+						})...)
 					}
 				}
 			} else {
-				results[pkg][name] = TestResult{
-					Package: pkg,
-					Name:    name,
-					Passed:  false,
-					Dur:     0,
+				pkgAnyFailures = true
+				// BeforePackage panicked, so simply mark the test as failed with its message
+				pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
+					Package:  pkg,
+					Name:     name,
+					Result:   ResultFailed,
+					Dur:      0,
+					DurHuman: "0s",
 					Msgs: append(pkgHelperT.msgs, Msg{
 						Msg:   fmt.Sprintf("%v", beforePkgErr),
 						Level: LevelError,
 					}),
-				}
+				})
 			}
 
 			return true
@@ -214,31 +223,49 @@ func Run() orderedmap.OrderedMap[string, orderedmap.OrderedMap[string, TestResul
 
 		// update test results if AfterPackage panicked
 		if afterPkgErr != nil {
-			newResults := make(orderedmap.OrderedMap[string, TestResult])
-			results[pkg].Iterate(func(test string, result TestResult) bool {
-				newResults[test] = TestResult{
-					Package: result.Package,
-					Name:    result.Name,
-					Passed:  false,
-					Dur:     result.Dur,
-					Msgs: append(result.Msgs, append(pkgHelperT.msgs, Msg{
-						Msg:   fmt.Sprintf("%v", afterPkgErr),
-						Level: LevelError,
-					})...),
-				}
-				return true
-			})
-
-			results[pkg] = newResults
+			pkgAnyFailures = true
+			m := Msg{
+				Msg:   fmt.Sprintf("%v", afterPkgErr),
+				Level: LevelError,
+			}
+			for i := range pkgResults.Subtests {
+				r := &pkgResults.Subtests[i]
+				r.Result = ResultFailed
+				r.Msgs = append(r.Msgs, append(pkgHelperT.msgs, m)...)
+			}
+			pkgResults.Msgs = append(pkgResults.Msgs, m)
 		}
+
+		r := ResultPassed
+		if pkgAnyFailures {
+			r = ResultFailed
+			anyFailures = true
+		}
+		pkgResults.Result = r
+		dur := time.Now().Sub(pkgStart).Round(time.Millisecond)
+		pkgResults.Dur = dur
+		pkgResults.DurHuman = dur.String()
 
 		return true
 	})
 
+	r := ResultPassed
+	if anyFailures {
+		r = ResultFailed
+	}
+	results.Result = r
+	dur := time.Now().Sub(start).Round(time.Millisecond)
+	results.Dur = dur
+	results.DurHuman = dur.String()
 	return results
 }
 
-func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
+func runTest(pkg, baseName string, tester Tester) TestResult {
+	result := TestResult{
+		Package: pkg,
+		Name:    baseName,
+	}
+
 	subtests := make(chan subtest)
 	subtestDone := make(chan struct{})
 	t := &t{
@@ -251,10 +278,16 @@ func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
 	stWg := sync.WaitGroup{}
 	stWg.Add(1)
 
+	anyFailures := false
 	go func() {
 		defer stWg.Done()
 		for st := range subtests {
-			runTest(pkg, baseName+"/"+st.name, st.tester, results)
+			stResult := runTest(pkg, baseName+"/"+st.name, st.tester)
+			if stResult.Result == ResultFailed {
+				// TODO does this need to be an atomic operation?
+				anyFailures = true
+			}
+			result.Subtests = append(result.Subtests, stResult)
 			subtestDone <- struct{}{}
 		}
 	}()
@@ -274,13 +307,15 @@ func runTest(pkg, baseName string, tester Tester, results chan<- TestResult) {
 	// doesn't hurt to be careful
 	stWg.Wait()
 	close(subtestDone)
-	dur := time.Now().Sub(start)
+	dur := time.Now().Sub(start).Round(time.Millisecond)
 
-	results <- TestResult{
-		Package: pkg,
-		Name:    baseName,
-		Msgs:    t.msgs,
-		Passed:  !t.failed,
-		Dur:     dur,
+	r := ResultPassed
+	if t.failed || anyFailures {
+		r = ResultFailed
 	}
+	result.Msgs = t.msgs
+	result.Result = r
+	result.Dur = dur
+	result.DurHuman = dur.String()
+	return result
 }

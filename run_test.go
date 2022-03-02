@@ -1,11 +1,11 @@
 package testy
 
 import (
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // know that before/after package/test and the test itself have run and when they were run
@@ -30,6 +30,12 @@ func fails(ts *time.Time) Tester {
 	}
 }
 
+func subtestForTest(tester Tester) Tester {
+	return func(t TestingT) {
+		t.Run("subtest", tester)
+	}
+}
+
 type runTC struct {
 	name          string
 	beforePackage Tester
@@ -37,6 +43,7 @@ type runTC struct {
 	afterTest     Tester
 	afterPackage  Tester
 	test          Tester
+	rootResult    Result
 	validate      func(*testing.T, TestResult)
 }
 
@@ -48,6 +55,7 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          succeeds(&tt),
+		rootResult:    ResultPassed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
@@ -55,8 +63,30 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			assert.True(t, tr.Passed)
+			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+		},
+	},
+	{
+		name:          "no helpers, subtest passes",
+		beforePackage: nil,
+		beforeTest:    nil,
+		afterTest:     nil,
+		afterPackage:  nil,
+		test:          subtestForTest(succeeds(&tt)),
+		rootResult:    ResultPassed,
+		validate: func(t *testing.T, tr TestResult) {
+			assert.Zero(t, bp)
+			assert.Zero(t, bt)
+			assert.NotZero(t, tt)
+			assert.Zero(t, at)
+			assert.Zero(t, ap)
+
+			assert.Equal(t, ResultPassed, tr.Result)
+
+			require.Len(t, tr.Subtests, 1)
+			assert.Equal(t, ResultPassed, tr.Subtests[0].Result)
+			assert.Len(t, tr.Subtests[0].Msgs, 0)
 		},
 	},
 	{
@@ -66,6 +96,7 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          fails(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
@@ -73,8 +104,30 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+		},
+	},
+	{
+		name:          "no helpers, subtest fails",
+		beforePackage: nil,
+		beforeTest:    nil,
+		afterTest:     nil,
+		afterPackage:  nil,
+		test:          subtestForTest(fails(&tt)),
+		rootResult:    ResultFailed,
+		validate: func(t *testing.T, tr TestResult) {
+			assert.Zero(t, bp)
+			assert.Zero(t, bt)
+			assert.NotZero(t, tt)
+			assert.Zero(t, at)
+			assert.Zero(t, ap)
+
+			assert.Equal(t, ResultFailed, tr.Result)
+
+			require.Len(t, tr.Subtests, 1)
+			assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
+			assert.Len(t, tr.Subtests[0].Msgs, 1)
 		},
 	},
 	{
@@ -84,6 +137,7 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          panics(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
@@ -91,8 +145,30 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+		},
+	},
+	{
+		name:          "no helpers, subtest panics",
+		beforePackage: nil,
+		beforeTest:    nil,
+		afterTest:     nil,
+		afterPackage:  nil,
+		test:          subtestForTest(panics(&tt)),
+		rootResult:    ResultFailed,
+		validate: func(t *testing.T, tr TestResult) {
+			assert.Zero(t, bp)
+			assert.Zero(t, bt)
+			assert.NotZero(t, tt)
+			assert.Zero(t, at)
+			assert.Zero(t, ap)
+
+			assert.Equal(t, ResultFailed, tr.Result)
+
+			require.Len(t, tr.Subtests, 1)
+			assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
+			assert.Len(t, tr.Subtests[0].Msgs, 1)
 		},
 	},
 	{
@@ -102,6 +178,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
+		rootResult:    ResultPassed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
@@ -109,7 +186,7 @@ var runTCs = []runTC{
 			assert.True(t, at.After(tt))
 			assert.True(t, ap.After(at))
 
-			assert.True(t, tr.Passed)
+			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
 		},
 	},
@@ -120,6 +197,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          fails(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
@@ -127,7 +205,7 @@ var runTCs = []runTC{
 			assert.True(t, at.After(tt))
 			assert.True(t, ap.After(at))
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
 		},
 	},
@@ -138,6 +216,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          panics(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
@@ -145,7 +224,7 @@ var runTCs = []runTC{
 			assert.True(t, at.After(tt))
 			assert.True(t, ap.After(at))
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
 		},
 	},
@@ -156,6 +235,7 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          succeeds(&tt),
+		rootResult:    ResultPassed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.Zero(t, bt)
@@ -163,7 +243,7 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			assert.True(t, tr.Passed)
+			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
 		},
 	},
@@ -174,6 +254,7 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  nil,
 		test:          succeeds(&tt),
+		rootResult:    ResultPassed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.NotZero(t, bt)
@@ -181,7 +262,7 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.Zero(t, ap)
 
-			assert.True(t, tr.Passed)
+			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
 		},
 	},
@@ -192,6 +273,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  nil,
 		test:          succeeds(&tt),
+		rootResult:    ResultPassed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
@@ -199,7 +281,7 @@ var runTCs = []runTC{
 			assert.True(t, at.After(tt))
 			assert.Zero(t, ap)
 
-			assert.True(t, tr.Passed)
+			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
 		},
 	},
@@ -210,6 +292,7 @@ var runTCs = []runTC{
 		afterTest:     nil,
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
+		rootResult:    ResultPassed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.Zero(t, bp)
 			assert.Zero(t, bt)
@@ -217,7 +300,7 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.True(t, ap.After(tt))
 
-			assert.True(t, tr.Passed)
+			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
 		},
 	},
@@ -228,6 +311,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.Zero(t, bt)
@@ -235,7 +319,7 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.True(t, ap.After(bp))
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
 		},
 	},
@@ -246,6 +330,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  panics(&ap),
 		test:          succeeds(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.Zero(t, bt)
@@ -253,7 +338,7 @@ var runTCs = []runTC{
 			assert.Zero(t, at)
 			assert.True(t, ap.After(bp))
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 2)
 		},
 	},
@@ -264,6 +349,7 @@ var runTCs = []runTC{
 		afterTest:     succeeds(&at),
 		afterPackage:  succeeds(&ap),
 		test:          succeeds(&tt),
+		rootResult:    ResultFailed,
 		validate: func(t *testing.T, tr TestResult) {
 			assert.NotZero(t, bp)
 			assert.True(t, bt.After(bp))
@@ -271,7 +357,7 @@ var runTCs = []runTC{
 			assert.True(t, at.After(bt))
 			assert.True(t, ap.After(at))
 
-			assert.False(t, tr.Passed)
+			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
 		},
 	},
@@ -310,7 +396,12 @@ func TestRun(t *testing.T) {
 			// I'm not able to think of it right now.
 
 			res := Run()
-			tc.validate(t, res["github.com/gametimesf/testy"][strings.Map(stripName, tc.name)])
+			assert.Equal(t, tc.rootResult, res.Result)
+
+			require.Len(t, res.Subtests, 1)
+			require.Len(t, res.Subtests[0].Subtests, 1)
+			// look into the test suite results and the package results
+			tc.validate(t, res.Subtests[0].Subtests[0])
 		})
 	}
 }
