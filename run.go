@@ -267,7 +267,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	}
 
 	subtests := make(chan subtest)
-	subtestDone := make(chan struct{})
+	subtestDone := make(chan bool)
 	t := &t{
 		name:        baseName,
 		tester:      tester,
@@ -288,7 +288,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 				anyFailures = true
 			}
 			result.Subtests = append(result.Subtests, stResult)
-			subtestDone <- struct{}{}
+			subtestDone <- stResult.Result == ResultPassed
 		}
 	}()
 

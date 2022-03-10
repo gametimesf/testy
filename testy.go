@@ -71,7 +71,7 @@ type TestingT interface {
 	Log(args ...interface{})
 	Logf(format string, args ...interface{})
 	Name() string
-	Run(string, Tester)
+	Run(string, Tester) bool
 }
 
 func stripName(r rune) rune {

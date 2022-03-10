@@ -10,6 +10,7 @@ import (
 
 // know that before/after package/test and the test itself have run and when they were run
 var bp, bt, at, ap, tt time.Time
+var subtestResult *bool
 
 func succeeds(ts *time.Time) Tester {
 	return func(TestingT) {
@@ -32,7 +33,8 @@ func fails(ts *time.Time) Tester {
 
 func subtestForTest(tester Tester) Tester {
 	return func(t TestingT) {
-		t.Run("subtest", tester)
+		b := t.Run("subtest", tester)
+		subtestResult = &b
 	}
 }
 
@@ -65,6 +67,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -87,6 +91,9 @@ var runTCs = []runTC{
 			require.Len(t, tr.Subtests, 1)
 			assert.Equal(t, ResultPassed, tr.Subtests[0].Result)
 			assert.Len(t, tr.Subtests[0].Msgs, 0)
+
+			require.NotNil(t, subtestResult)
+			assert.True(t, *subtestResult)
 		},
 	},
 	{
@@ -106,6 +113,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -128,6 +137,9 @@ var runTCs = []runTC{
 			require.Len(t, tr.Subtests, 1)
 			assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
 			assert.Len(t, tr.Subtests[0].Msgs, 1)
+
+			require.NotNil(t, subtestResult)
+			assert.False(t, *subtestResult)
 		},
 	},
 	{
@@ -147,6 +159,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -169,6 +183,9 @@ var runTCs = []runTC{
 			require.Len(t, tr.Subtests, 1)
 			assert.Equal(t, ResultFailed, tr.Subtests[0].Result)
 			assert.Len(t, tr.Subtests[0].Msgs, 1)
+
+			require.NotNil(t, subtestResult)
+			assert.False(t, *subtestResult)
 		},
 	},
 	{
@@ -188,6 +205,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -207,6 +226,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -226,6 +247,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -245,6 +268,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -264,6 +289,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -283,6 +310,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -302,6 +331,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultPassed, tr.Result)
 			assert.Len(t, tr.Msgs, 0)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -321,6 +352,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -340,6 +373,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 2)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 	{
@@ -359,6 +394,8 @@ var runTCs = []runTC{
 
 			assert.Equal(t, ResultFailed, tr.Result)
 			assert.Len(t, tr.Msgs, 1)
+
+			assert.Nil(t, subtestResult)
 		},
 	},
 }
@@ -373,6 +410,7 @@ func TestRun(t *testing.T) {
 			at = time.Time{}
 			ap = time.Time{}
 			tt = time.Time{}
+			subtestResult = nil
 
 			// set up everything we need
 
