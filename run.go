@@ -288,7 +288,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 				anyFailures = true
 			}
 			result.Subtests = append(result.Subtests, stResult)
-			subtestDone <- stResult.Result == ResultPassed
+			subtestDone <- stResult.Result != ResultFailed
 		}
 	}()
 
