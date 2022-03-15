@@ -12,7 +12,7 @@ type t struct {
 	failed      bool
 	msgs        []Msg
 	subtests    chan<- subtest
-	subtestDone <-chan struct{}
+	subtestDone <-chan bool
 }
 
 type subtest struct {
@@ -85,7 +85,7 @@ func (t *t) Name() string {
 	return t.name
 }
 
-func (t *t) Run(name string, tester Tester) {
+func (t *t) Run(name string, tester Tester) bool {
 	if !t.test() {
 		panic("attempting to run subtest on non-subtest-capable T (you can only Run in Tests, not Before/After)")
 	}
@@ -93,5 +93,5 @@ func (t *t) Run(name string, tester Tester) {
 		name:   strings.Map(stripName, name),
 		tester: tester,
 	}
-	<-t.subtestDone
+	return <-t.subtestDone
 }
