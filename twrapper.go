@@ -51,14 +51,14 @@ func (t tWrapper) Logf(format string, args ...interface{}) {
 	t.t.Logf(format, args...)
 }
 
-func (t tWrapper) Name() string {
-	return t.t.Name()
-}
-
 func (t tWrapper) Run(s string, tester Tester) bool {
 	t.t.Helper()
 	return t.t.Run(s, func(tt *testing.T) {
 		t.t.Helper()
 		tester(tWrapper{t: tt})
 	})
+}
+
+func (t tWrapper) Parallel() {
+	t.t.Parallel()
 }

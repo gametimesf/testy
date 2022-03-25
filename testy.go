@@ -62,16 +62,49 @@ var instance testy
 //
 // TODO flesh this out with more useful stuff from testing.T -- Parallel would be nice but tricky
 type TestingT interface {
+	// Fail marks the function as having failed but continues execution.
 	Fail()
+	// FailNow marks the function as having failed and stops its execution
+	// by calling runtime.Goexit (which then runs all deferred calls in the
+	// current goroutine).
+	// Execution will continue at the next test or benchmark.
+	// FailNow must be called from the goroutine running the
+	// test or benchmark function, not from other goroutines
+	// created during the test. Calling FailNow does not stop
+	// those other goroutines.
 	FailNow()
+	// Fatal is equivalent to Log followed by FailNow.
 	Fatal(args ...interface{})
+	// Fatalf is equivalent to Logf followed by FailNow.
 	Fatalf(format string, args ...interface{})
+	// Errorf is equivalent to Logf followed by Fail.
 	Errorf(format string, args ...interface{})
+	// Helper does not do anything useful since the call stack when passed to the actual implementation has an extra
+	// level in it.
 	Helper()
+	// Log formats its arguments using default formatting, analogous to Println,
+	// and records the text in the error log. For tests, the text will be printed only if
+	// the test fails or the -test.v flag is set.
 	Log(args ...interface{})
+	// Logf formats its arguments according to the format, analogous to Printf, and
+	// records the text in the error log. A final newline is added if not provided. For
+	// tests, the text will be printed only if the test fails or the -test.v flag is
+	// set.
 	Logf(format string, args ...interface{})
-	Name() string
+	// Run runs f as a subtest of t called name. It runs f in a separate goroutine
+	// and blocks until f returns (or, if running via go test, calls t.Parallel to become a parallel test).
+	// Run reports whether f succeeded (or, if running via go test, at least did not fail before calling t.Parallel).
+	//
+	// Run may be called simultaneously from multiple goroutines, but all such calls
+	// must return before the outer test function for t returns.
 	Run(string, Tester) bool
+	// Parallel signals that this test is to be run in parallel with (and only with)
+	// other parallel tests. When a test is run multiple times due to use of
+	// -test.count or -test.cpu, multiple instances of a single test never run in
+	// parallel with each other.
+	//
+	// Parallel only affects RunAsTest as it relies on testing.T's implementation.
+	Parallel()
 }
 
 func stripName(r rune) rune {
