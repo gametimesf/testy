@@ -81,10 +81,6 @@ func (t *t) Logf(format string, args ...interface{}) {
 	t.msgs = append(t.msgs, Msg{Msg: fmt.Sprintf(format, args...), Level: LevelInfo})
 }
 
-func (t *t) Name() string {
-	return t.name
-}
-
 func (t *t) Run(name string, tester Tester) bool {
 	if !t.test() {
 		panic("attempting to run subtest on non-subtest-capable T (you can only Run in Tests, not Before/After)")
@@ -95,3 +91,7 @@ func (t *t) Run(name string, tester Tester) bool {
 	}
 	return <-t.subtestDone
 }
+
+// Parallel does nothing for this implementation.
+// TODO figure out how to support it.
+func (*t) Parallel() {}
