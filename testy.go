@@ -8,6 +8,7 @@ import (
 
 type testy struct {
 	tests orderedmap.OrderedMap[string, *testPkg]
+	db    DB
 }
 
 type testPkg struct {
