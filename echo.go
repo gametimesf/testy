@@ -13,6 +13,13 @@ func AddEchoRoutes(router *echo.Group) {
 
 func runTests(c echo.Context) error {
 	results := Run()
+
+	if instance.db != nil {
+		// TODO do we want to alert this somehow?
+		// doesn't make sense to return an http error since we do have test results
+		_, _ = SaveResult(c.Request().Context(), results)
+	}
+
 	// TODO convert results into a better format?
 	return c.JSON(http.StatusOK, results)
 }
