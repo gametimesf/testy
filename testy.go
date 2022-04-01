@@ -33,6 +33,7 @@ type TestResult struct {
 	Name     string
 	Msgs     []Msg
 	Result   Result
+	Started  time.Time
 	Dur      time.Duration
 	DurHuman string
 	Subtests []TestResult

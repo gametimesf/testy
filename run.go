@@ -86,10 +86,11 @@ func RunAsTest(t *testing.T) {
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
 // TODO: channel for results to support progressive result loading?
 func Run() TestResult {
-	results := TestResult{
-		Name: "Test Suite",
-	}
 	start := time.Now()
+	results := TestResult{
+		Name:    "Test Suite",
+		Started: start,
+	}
 	anyFailures := false
 
 	// TODO run packages in parallel like go test does
@@ -98,6 +99,7 @@ func Run() TestResult {
 		results.Subtests = append(results.Subtests, TestResult{
 			Package: pkg,
 			Name:    "Package",
+			Started: pkgStart,
 		})
 		pkgResults := &results.Subtests[len(results.Subtests)-1]
 
@@ -158,6 +160,7 @@ func Run() TestResult {
 					pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
 						Package:  pkg,
 						Name:     name,
+						Started:  time.Now(),
 						Result:   ResultFailed,
 						Dur:      0,
 						DurHuman: "0s",
@@ -196,6 +199,7 @@ func Run() TestResult {
 				pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
 					Package:  pkg,
 					Name:     name,
+					Started:  pkgStart,
 					Result:   ResultFailed,
 					Dur:      0,
 					DurHuman: "0s",
@@ -315,6 +319,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	}
 	result.Msgs = t.msgs
 	result.Result = r
+	result.Started = start
 	result.Dur = dur
 	result.DurHuman = dur.String()
 	return result
