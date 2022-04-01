@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Results</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0-alpha.5/css/bootstrap.min.css">
+</head>
+<body>
+    {{/* TODO ability to have custom header/footer */}}
+    <div class="table-responsive-md">
+        <table class="table-bordered table-hover table-sm">
+            <thead class="thead-default">
+                <tr>
+                    <th scope="col">Start Time</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Total Tests Executed</th>
+                    <th scope="col">Tests Passed</th>
+                </tr>
+            </thead>
+            <tbody>
+            {{- /*gotype: github.com/gametimesf/testy.listResultsCtx*/ -}}
+            {{range .Results}}
+                <tr class="{{if eq .Total .Passed}}table-success{{else}}table-danger{{end}}">
+                    <td>{{.Started}}</td>
+                    <td>{{.Dur}}</td>
+                    <td>{{.Total}}</td>
+                    <td style="color:{{if eq .Total .Passed}}green{{else}}red{{end}}">{{.Passed}}</td>
+                </tr>
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+    <div>
+        Page
+        {{range .PrevPages}}
+            <a href="?page={{.}}">{{.}}</a>
+        {{end}}
+        {{.Page}}
+        {{if .More}}
+            <br><a href="?page={{.NextPage}}">More</a>
+        {{end}}
+    </div>
+</body>
+</html>
