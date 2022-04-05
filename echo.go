@@ -2,9 +2,11 @@ package testy
 
 import (
 	"embed"
+	"errors"
 	"html/template"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -18,6 +20,10 @@ type listResultsCtx struct {
 	Page      int
 	NextPage  int
 	More      bool
+}
+
+type showResultCtx struct {
+	Result TestResult
 }
 
 type echoRenderer struct {
@@ -42,9 +48,11 @@ func EchoRenderer() (echo.Renderer, error) {
 // AddEchoRoutes adds routes to an Echo router that can run tests and retrieve tests results.
 func AddEchoRoutes(router *echo.Group) {
 	router.GET("/run", runTests)
+
 	results := router.Group("/results")
 	results.GET("", listResults)
 	results.GET("/", listResults)
+	results.GET("/:id", showResult)
 }
 
 func runTests(c echo.Context) error {
@@ -96,5 +104,33 @@ func listResults(c echo.Context) error {
 		PrevPages: prevPages,
 		Page:      req.Page,
 		NextPage:  req.Page + 1,
+	})
+}
+
+func showResult(c echo.Context) error {
+	if instance.db == nil {
+		return c.String(http.StatusInternalServerError, "No test result database configured.")
+	}
+
+	req := struct {
+		ID string `param:"id"`
+	}{}
+	err := c.Bind(&req)
+	if err != nil {
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
+	tr, err := LoadResult(c.Request().Context(), req.ID)
+	if errors.Is(err, ErrNotFound) {
+		return c.NoContent(http.StatusNotFound)
+	}
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	tr.Started = tr.Started.Truncate(time.Second)
+
+	return c.Render(http.StatusOK, "result.gohtml", showResultCtx{
+		Result: tr,
 	})
 }

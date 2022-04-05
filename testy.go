@@ -142,6 +142,22 @@ func (tr TestResult) SumTestStats() (total, passed, failed int) {
 	return total, passed, failed
 }
 
+// TotalSubtests returns the total number of leaf subtests.
+// Prefer to use SumTestStats, as that returns more information for the same recursion cost;
+// this is intended for Go templates, which are more limited in what you can do.
+func (tr TestResult) TotalSubtests() int {
+	total, _, _ := tr.SumTestStats()
+	return total
+}
+
+// PassedSubtests returns the number of leaf subtests that passed.
+// Prefer to use SumTestStats, as that returns more information for the same recursion cost;
+// this is intended for Go templates, which are more limited in what you can do.
+func (tr TestResult) PassedSubtests() int {
+	_, passed, _ := tr.SumTestStats()
+	return passed
+}
+
 // FindFailingTests finds the least deeply nested subtests that have sibling tests that passed.
 // These subtests may be in different branches of subtests.
 // This implies that this test failed; if it did not, then a nil slice is returned.
@@ -162,4 +178,9 @@ func (tr TestResult) FindFailingTests() []TestResult {
 		res = append(res, st.FindFailingTests()...)
 	}
 	return res
+}
+
+// TruncatedTimestamp returns the started timestamp truncated to second precision.
+func (tr TestResult) TruncatedTimestamp() time.Time {
+	return tr.Started.Truncate(time.Second)
 }
