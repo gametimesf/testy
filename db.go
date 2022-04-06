@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
+// ErrNoDB indicates no DB has been set via SetDB.
 var ErrNoDB = errors.New("no DB set")
+
+// ErrNotFound indicates the provided result ID was not found in the datastore.
 var ErrNotFound = errors.New("not found")
 
 // DB is the interface for something which can save and retrieve test reports.
@@ -21,15 +24,19 @@ type DB interface {
 	Save(context.Context, TestResult) (string, error)
 }
 
+// Summary is an overview of a TestResult, used to populate the list of past results.
 type Summary struct {
+	// ID is an opaque unique identifier for a test result. The specific format is defined by the datastore.
 	ID      string
 	Started time.Time
 	Dur     time.Duration
 	Total   int
 	Passed  int
+	Failed  int
 }
 
 // SetDB sets the datastore to use for test reports.
+// This must be called during application startup.
 func SetDB(db DB) {
 	instance.db = db
 }

@@ -158,6 +158,14 @@ func (tr TestResult) PassedSubtests() int {
 	return passed
 }
 
+// FailedSubtests returns the number of leaf subtests that failed.
+// Prefer to use SumTestStats, as that returns more information for the same recursion cost;
+// this is intended for Go templates, which are more limited in what you can do.
+func (tr TestResult) FailedSubtests() int {
+	_, _, failed := tr.SumTestStats()
+	return failed
+}
+
 // FindFailingTests finds the least deeply nested subtests that have sibling tests that passed.
 // These subtests may be in different branches of subtests.
 // This implies that this test failed; if it did not, then a nil slice is returned.
