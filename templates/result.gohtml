@@ -1,0 +1,87 @@
+{{define "singleResult"}}
+    <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}">
+        {{- /*gotype: github.com/gametimesf/testy.TestResult*/ -}}
+        <td class="nowrap">{{.Package}}</td>
+        <td class="nowrap">{{.Name}}</td>
+        <td class="nowrap">{{.TruncatedTimestamp}}</td>
+        <td class="nowrap">{{.DurHuman}}</td>
+        <td>{{.Result}}</td>
+        <td class="nowrap">{{.PassedSubtests}} / {{.TotalSubtests}}</td>
+        <td>
+            {{if .Msgs}}
+                <table>
+                    <thead>
+                    <tr>
+                        <th scope="col">Level</th>
+                        <th scope="col">Message</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{range .Msgs}}
+                        {{template "message" .}}
+                    {{end}}
+                    </tbody>
+                </table>
+            {{end}}
+        </td>
+    </tr>
+    {{range .Subtests}}
+        {{template "singleResult" .}}
+    {{end}}
+{{end}}
+{{define "message"}}
+    <tr>
+        {{- /*gotype: github.com/gametimesf/testy.Msg*/ -}}
+        <td>{{.Level}}</td>
+        <td><pre>{{.Msg}}</pre></td>
+    </tr>
+{{end}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    {{- /*gotype: github.com/gametimesf/testy.showResultCtx*/ -}}
+    <title>Test Result - {{.Result.Started}}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0-alpha.5/css/bootstrap.min.css">
+    <style>
+        .nowrap {
+            white-space: nowrap
+        }
+    </style>
+</head>
+<body>
+    {{/* TODO ability to have custom header/footer */}}
+    <div class="table-responsive-md">
+        <table class="table-bordered table-hover table-sm">
+            <thead class="thead-default">
+                <tr>
+                    <th scope="col" class="nowrap">Package</th>
+                    <th scope="col" class="nowrap">Test Name</th>
+                    <th scope="col" class="nowrap">Started At</th>
+                    <th scope="col" class="nowrap">Duration</th>
+                    <th scope="col">Result</th>
+                    <th scope="col" class="nowrap">Subtest Results</th>
+                    <th scope="col">Messages</th>
+                </tr>
+            </thead>
+            <tbody>
+            {{with .Result}}
+                <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}">
+                    {{- /*gotype: github.com/gametimesf/testy.TestResult*/ -}}
+                    <td></td>
+                    <td>{{.Name}}</td>
+                    <td>{{.TruncatedTimestamp}}</td>
+                    <td>{{.DurHuman}}</td>
+                    <td>{{.Result}}</td>
+                    <td>{{.PassedSubtests}} / {{.TotalSubtests}}</td>
+                    <td></td>
+                </tr>
+                {{range .Subtests}}
+                    {{template "singleResult" .}}
+                {{end}}
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
