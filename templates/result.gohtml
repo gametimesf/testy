@@ -10,33 +10,29 @@
             {{.PassedSubtests}} / {{.FailedSubtests}} / {{.TotalSubtests}}
         </td>
         <td>
-            {{if .Msgs}}
-                <table>
-                    <thead>
+        {{if .Msgs}}
+            <table>
+                <thead>
+                <tr>
+                    <th scope="col">Level</th>
+                    <th scope="col">Message</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .Msgs}}
                     <tr>
-                        <th scope="col">Level</th>
-                        <th scope="col">Message</th>
+                        <td>{{.Level}}</td>
+                        <td><pre>{{.Msg}}</pre></td>
                     </tr>
-                    </thead>
-                    <tbody>
-                    {{range .Msgs}}
-                        {{template "message" .}}
-                    {{end}}
-                    </tbody>
-                </table>
-            {{end}}
+                {{end}}
+                </tbody>
+            </table>
+        {{end}}
         </td>
     </tr>
     {{range .Subtests}}
         {{template "singleResult" .}}
     {{end}}
-{{end}}
-{{define "message"}}
-    <tr>
-        {{- /*gotype: github.com/gametimesf/testy.Msg*/ -}}
-        <td>{{.Level}}</td>
-        <td><pre>{{.Msg}}</pre></td>
-    </tr>
 {{end}}
 <!DOCTYPE html>
 <html lang="en">
