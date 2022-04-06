@@ -15,6 +15,7 @@ import (
 var templateData embed.FS
 
 type listResultsCtx struct {
+	echo      *echo.Echo
 	Results   []Summary
 	PrevPages []int
 	Page      int
@@ -52,7 +53,7 @@ func AddEchoRoutes(router *echo.Group) {
 	results := router.Group("/results")
 	results.GET("", listResults)
 	results.GET("/", listResults)
-	results.GET("/:id", showResult)
+	results.GET("/:id", showResult).Name = "showResult"
 }
 
 func runTests(c echo.Context) error {
@@ -99,6 +100,7 @@ func listResults(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "result_list.gohtml", listResultsCtx{
+		echo:      c.Echo(),
 		Results:   results,
 		More:      more,
 		PrevPages: prevPages,
@@ -137,4 +139,8 @@ func showResult(c echo.Context) error {
 	return c.Render(http.StatusOK, "result.gohtml", showResultCtx{
 		Result: tr,
 	})
+}
+
+func (c listResultsCtx) LinkForID(id string) string {
+	return c.echo.Reverse("showResult", id)
 }
