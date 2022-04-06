@@ -113,7 +113,8 @@ func showResult(c echo.Context) error {
 	}
 
 	req := struct {
-		ID string `param:"id"`
+		ID  string `param:"id"`
+		Raw bool   `query:"raw"`
 	}{}
 	err := c.Bind(&req)
 	if err != nil {
@@ -128,8 +129,11 @@ func showResult(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	tr.Started = tr.Started.Truncate(time.Second)
+	if req.Raw {
+		return c.JSON(http.StatusOK, tr)
+	}
 
+	tr.Started = tr.Started.Truncate(time.Second)
 	return c.Render(http.StatusOK, "result.gohtml", showResultCtx{
 		Result: tr,
 	})
