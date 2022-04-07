@@ -15,6 +15,7 @@
                     <th scope="col">Duration</th>
                     <th scope="col">Total Tests Executed</th>
                     <th scope="col">Tests Passed</th>
+                    <th scope="col">Tests Failed</th>
                 </tr>
             </thead>
             <tbody>
@@ -25,6 +26,7 @@
                     <td>{{.Dur}}</td>
                     <td>{{.Total}}</td>
                     <td style="color:{{if eq .Total .Passed}}green{{else}}red{{end}}">{{.Passed}}</td>
+                    <td style="color:{{if eq .Total .Passed}}green{{else}}red{{end}}">{{.Failed}}</td>
                 </tr>
             {{end}}
             </tbody>
