@@ -86,7 +86,7 @@ func (t *t) Run(name string, tester Tester) bool {
 		panic("attempting to run subtest on non-subtest-capable T (you can only Run in Tests, not Before/After)")
 	}
 	t.subtests <- subtest{
-		name:   strings.Map(stripName, name),
+		name:   strings.Map(sanitizeName, name),
 		tester: tester,
 	}
 	return <-t.subtestDone

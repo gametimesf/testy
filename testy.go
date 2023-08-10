@@ -26,30 +26,47 @@ type testCase struct {
 	tester  Tester
 }
 
+// Tester is a thing that runs a test.
 type Tester func(t TestingT)
 
+// TestResult is the result of a specific test.
 type TestResult struct {
-	Package  string
-	Name     string
-	Msgs     []Msg
-	Result   Result
-	Started  time.Time
-	Dur      time.Duration
+	// Package is the Go package that contains the test.
+	Package string
+	// Name is the name of the test as provided to Test (for top-level tests), Run (for subtests),
+	// or the string representation of each value (for TestEach).
+	Name string
+	// Msgs contains each message that was emitted during the test via the methods on TestingT that emit messages.
+	Msgs []Msg
+	// Result is the result of the test.
+	Result Result
+	// Started is when the test was started.
+	Started time.Time
+	// Dur is how long the test took.
+	Dur time.Duration
+	// DurHuman is how long the test took in human-readable form.
 	DurHuman string
+	// Subtests contains the test result of every test this test started via Run or TestEach.
 	Subtests []TestResult
 }
 
+// Level indicates at what log level a Msg was emitted.
 type Level string
 
 const (
-	LevelInfo  Level = "info"
+	// LevelInfo is an informative log message (Log, etc.)
+	LevelInfo Level = "info"
+	// LevelError is an error log message (Fatal, etc.)
 	LevelError Level = "error"
 )
 
+// Result indicates the result of a test.
 type Result string
 
 const (
+	// ResultPassed indicates that this test (and all of its subtests) passed.
 	ResultPassed Result = "passed"
+	// ResultFailed indicates that this test or at least one of its subtests failed.
 	ResultFailed Result = "failed"
 )
 
@@ -109,7 +126,7 @@ type TestingT interface {
 	Parallel()
 }
 
-func stripName(r rune) rune {
+func sanitizeName(r rune) rune {
 	if r == '/' {
 		// / is in the middle of the range we do want to allow; we need to strip this since it's used to separate
 		// subtests

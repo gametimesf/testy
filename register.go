@@ -17,6 +17,11 @@ import (
 // Test registers a new test to be run.
 // Tests are run in lexicographical order within a package.
 //
+// Test cases should *not* be defined in `_test.go` files if they are to be run via Run.
+// If they are, they will not be compiled into the binary.
+// This also means that you need to ensure that your test packages are eventually imported by your main package.
+// You may need to do this with a side effects import (`import _ "my/package"`).
+//
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
 //	var _ = testy.Test("my test", func(t testy.TestingT){})
@@ -25,7 +30,7 @@ func Test(name string, tester Tester) any {
 		panic(fmt.Sprintf("test %s has nil test function", name))
 	}
 
-	name = strings.Map(stripName, name)
+	name = strings.Map(sanitizeName, name)
 	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)
 

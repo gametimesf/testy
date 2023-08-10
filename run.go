@@ -15,6 +15,9 @@ import (
 // Do not import a test package into another test package as that will cause the tests in the second package to get executed with the first package.
 // If code or resources need shared between test packages, put them in their own package which does not contain any test definitions.
 //
+// Individual tests in a package may still be run using the standard -run test flag.
+// See `go help testflag` for more information.
+//
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
 func RunAsTest(t *testing.T) {
 	t.Helper()
