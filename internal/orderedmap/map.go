@@ -10,8 +10,8 @@ import (
 // TODO implement json.Marshaler and json.Unmarshaler?
 type OrderedMap[K cmp.Ordered, V any] map[K]V
 
-// Iterate iterates over the keys of the OrderedMap in natural sort order. If the iterator returns false, iteration is
-// aborted (like the break keyword).
+// Iterate iterates over the keys of the OrderedMap in natural sort order.
+// If the iterator returns false, iteration is aborted (like the break keyword).
 //
 // Iterate is not safe for concurrent modification.
 func (m OrderedMap[K, V]) Iterate(iterator func(key K, value V) bool) {
