@@ -1,15 +1,14 @@
 package orderedmap
 
 import (
+	"cmp"
 	"sort"
-
-	"golang.org/x/exp/constraints"
 )
 
 // OrderedMap is a map that can be iterated in the natural order of its keys.
 //
-// TODO implement json.Marshaler and json.Unmarshaler
-type OrderedMap[K constraints.Ordered, V any] map[K]V
+// TODO implement json.Marshaler and json.Unmarshaler?
+type OrderedMap[K cmp.Ordered, V any] map[K]V
 
 // Iterate iterates over the keys of the OrderedMap in natural sort order. If the iterator returns false, iteration is
 // aborted (like the break keyword).

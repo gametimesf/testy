@@ -3,7 +3,7 @@ lint:
 	golangci-lint run
 
 .PHONY: test
-test: # lint # TODO add lint back when golangci-lint supports type parameters
+test: lint
 	go vet ./...
 	go test --race --cover $$(go list ./...)
 
@@ -26,4 +26,4 @@ test-coverage: lint
 .PHONY: fmt
 fmt:
 	go fmt ./...
-	find . -name '*.go' -exec gci -w -local github.com/gametimesf/testy {} \; > /dev/null
+	find . -name '*.go' -exec gci write -s 'standard' -s 'default' -s 'prefix(github.com/gametimesf/testy)' {} \; > /dev/null
