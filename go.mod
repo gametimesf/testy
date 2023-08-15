@@ -1,11 +1,10 @@
 module github.com/gametimesf/testy
 
-go 1.18
+go 1.21.0
 
 require (
 	github.com/labstack/echo/v4 v4.11.1
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20220209042442-160e291fcf24
 )
 
 require (

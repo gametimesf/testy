@@ -60,7 +60,7 @@ func getPackageTests(pkg string) *testPkg {
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
-//    var _ = testy.Test("my test", func(t testy.TestingT){})
+//	var _ = testy.Test("my test", func(t testy.TestingT){})
 func Test(name string, tester Tester) any {
 	if tester == nil {
 		panic(fmt.Sprintf("test %s has nil test function", name))
@@ -101,7 +101,7 @@ func Test(name string, tester Tester) any {
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
-//    var _ = testy.BeforePackage(func(){})
+//	var _ = testy.BeforePackage(func(){})
 func BeforePackage(f Tester) any {
 	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)
@@ -133,7 +133,7 @@ func BeforePackage(f Tester) any {
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
-//    var _ = testy.AfterPackage(func(){})
+//	var _ = testy.AfterPackage(func(){})
 func AfterPackage(f Tester) any {
 	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)
@@ -161,7 +161,7 @@ func AfterPackage(f Tester) any {
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
-//    var _ = testy.BeforeTest(func(){})
+//	var _ = testy.BeforeTest(func(){})
 func BeforeTest(f Tester) any {
 	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)
@@ -189,7 +189,7 @@ func BeforeTest(f Tester) any {
 //
 // The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
 //
-//    var _ = testy.AfterTest(func(){})
+//	var _ = testy.AfterTest(func(){})
 func AfterTest(f Tester) any {
 	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)

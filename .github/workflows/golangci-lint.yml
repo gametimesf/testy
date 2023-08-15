@@ -1,25 +1,28 @@
 name: golangci-lint
-env:
-  GOPRIVATE: github.com/gametimesf
 on:
-  push:
-    branches:
-      - master
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 jobs:
   golangci:
     name: lint
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.21'
       - uses: actions/checkout@v2
       - name: go-mod-download
         # force go to download the modules first, golangci-lint just does not do it correctly
         run: go mod download
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v3.4.0
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
-          version: v1.31
+          version: v1.54
 
           # Optional: show only new issues if it's a pull request. The default value is `false`.
-          # only-new-issues: true
+          only-new-issues: true
+
+          # Optional: if set to true then the all caching functionality will be complete disabled,
+          #           takes precedence over all other caching options.
+          skip-cache: true
