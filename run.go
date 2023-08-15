@@ -8,14 +8,12 @@ import (
 	"time"
 )
 
-// RunAsTest runs all registered tests under Go's testing framework. To run tests on a per-package basis, put a test
-// file in each package containing a single test that calls this function. This is recommended so accurate per-package
-// execution times are reported, as well as using the test cache. Do not import a test package into another test package
-// as that will cause the tests in the second package to get executed with the first package. If code or resources need
-// shared between test packages, put them in their own package which does not contain any test definitions.
+// RunAsTest runs all registered tests under Go's testing framework.
 //
-// Individual tests in a package may still be run using the standard -run test flag. See `go help testflag` for more
-// information.
+// To run tests on a per-package basis, put a test file in each package containing a single test that calls this function.
+// This is recommended so accurate per-package execution times are reported, as well as using the test cache.
+// Do not import a test package into another test package as that will cause the tests in the second package to get executed with the first package.
+// If code or resources need shared between test packages, put them in their own package which does not contain any test definitions.
 //
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
 func RunAsTest(t *testing.T) {
@@ -83,7 +81,9 @@ func RunAsTest(t *testing.T) {
 // Run runs all registered tests and returns result information about them.
 //
 // TODO: ability to filter for specific packages and tests
+//
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
+//
 // TODO: channel for results to support progressive result loading?
 func Run() TestResult {
 	start := time.Now()
@@ -246,7 +246,7 @@ func Run() TestResult {
 			anyFailures = true
 		}
 		pkgResults.Result = r
-		dur := time.Now().Sub(pkgStart).Round(time.Millisecond)
+		dur := time.Since(pkgStart).Round(time.Millisecond)
 		pkgResults.Dur = dur
 		pkgResults.DurHuman = dur.String()
 
@@ -258,7 +258,7 @@ func Run() TestResult {
 		r = ResultFailed
 	}
 	results.Result = r
-	dur := time.Now().Sub(start).Round(time.Millisecond)
+	dur := time.Since(start).Round(time.Millisecond)
 	results.Dur = dur
 	results.DurHuman = dur.String()
 	return results
@@ -311,7 +311,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	// doesn't hurt to be careful
 	stWg.Wait()
 	close(subtestDone)
-	dur := time.Now().Sub(start).Round(time.Millisecond)
+	dur := time.Since(start).Round(time.Millisecond)
 
 	r := ResultPassed
 	if t.failed || anyFailures {

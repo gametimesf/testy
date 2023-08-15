@@ -41,8 +41,8 @@ func SetDB(db DB) {
 	instance.db = db
 }
 
-// SaveResult saves the provided result to the registered datastore. If no datastore has been registered, an error
-// wrapping ErrNoDB is returned.
+// SaveResult saves the provided result to the registered datastore.
+// If no datastore has been registered, an error wrapping ErrNoDB is returned.
 func SaveResult(ctx context.Context, tr TestResult) (string, error) {
 	if instance.db == nil {
 		return "", fmt.Errorf("%w", ErrNoDB)
@@ -51,8 +51,9 @@ func SaveResult(ctx context.Context, tr TestResult) (string, error) {
 	return instance.db.Save(ctx, tr)
 }
 
-// LoadResult loads the specified result from the registered datastore. If no datastore has been registered, an error
-// wrapping ErrNoDB is returned. If the ID is invalid, an error wrapping ErrNotFound is returned.
+// LoadResult loads the specified result from the registered datastore.
+// If no datastore has been registered, an error wrapping ErrNoDB is returned.
+// If the ID is invalid, an error wrapping ErrNotFound is returned.
 func LoadResult(ctx context.Context, id string) (TestResult, error) {
 	if instance.db == nil {
 		return TestResult{}, fmt.Errorf("%w", ErrNoDB)
