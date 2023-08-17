@@ -2,6 +2,9 @@ package orderedmap
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func ExampleOrderedMap() {
@@ -24,4 +27,14 @@ func ExampleOrderedMap() {
 	// two
 	// three
 	// four
+}
+
+func TestNilIterate(t *testing.T) {
+	var m OrderedMap[int, any]
+	assert.Nil(t, m)
+	// only testing that this does not panic
+	m.Iterate(func(k int, v any) bool {
+		assert.FailNow(t, "Should not iterate a nil map")
+		return false // unreachable but the compiler does not know that
+	})
 }

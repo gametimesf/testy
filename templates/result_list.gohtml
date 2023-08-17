@@ -22,7 +22,7 @@
             {{- /*gotype: github.com/gametimesf/testy.listResultsCtx*/ -}}
             {{range .Results}}
                 <tr class="{{if eq .Total .Passed}}table-success{{else}}table-danger{{end}}">
-                    <td><a href="{{$.LinkForID .ID}}">{{.Started}}</a></td>
+                    <td><a href="{{$.LinkForID .ID}}">{{.TruncatedTimestamp}}</a></td>
                     <td>{{.Dur}}</td>
                     <td>{{.Total}}</td>
                     <td style="color:{{if eq .Total .Passed}}green{{else}}red{{end}}">{{.Passed}}</td>

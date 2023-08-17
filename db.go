@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/gametimesf/testy/internal/orderedmap"
 )
 
 // ErrNoDB indicates no DB has been set via SetDB.
@@ -27,12 +30,22 @@ type DB interface {
 // Summary is an overview of a TestResult, used to populate the list of past results.
 type Summary struct {
 	// ID is an opaque unique identifier for a test result. The specific format is defined by the datastore.
-	ID      string
+	ID string
+	// Started indicates when a test run was started.
 	Started time.Time
-	Dur     time.Duration
-	Total   int
-	Passed  int
-	Failed  int
+	// Dur is how long the test run took to complete.
+	Dur time.Duration
+	// Total is the total number of tests that were run.
+	Total int
+	// Passed is the number of tests that passed.
+	Passed int
+	// Failed is the number of tests that failed.
+	Failed int
+}
+
+// TruncatedTimestamp returns the started timestamp truncated to second precision.
+func (s Summary) TruncatedTimestamp() time.Time {
+	return s.Started.Truncate(time.Second)
 }
 
 // SetDB sets the datastore to use for test reports.
@@ -60,4 +73,47 @@ func LoadResult(ctx context.Context, id string) (TestResult, error) {
 	}
 
 	return instance.db.Load(ctx, id)
+}
+
+// InMemoryDB is an implementation of DB that is stored in memory, with no persistent storage.
+// It should be used for demonstration purposes only.
+type InMemoryDB struct {
+	nextID int
+	store  orderedmap.OrderedMap[string, TestResult]
+}
+
+var _ DB = (*InMemoryDB)(nil)
+
+func (db *InMemoryDB) Enumerate(_ context.Context, _ int) (results []Summary, more bool, err error) {
+	s := make([]Summary, 0, len(db.store))
+	db.store.Iterate(func(id string, r TestResult) bool {
+		total, passed, failed := r.SumTestStats()
+		s = append(s, Summary{
+			ID:      id,
+			Started: r.Started,
+			Dur:     r.Dur,
+			Total:   total,
+			Passed:  passed,
+			Failed:  failed,
+		})
+		return true
+	})
+	return s, false, nil
+}
+
+func (db *InMemoryDB) Load(_ context.Context, id string) (TestResult, error) {
+	if r, ok := db.store[id]; ok {
+		return r, nil
+	}
+	return TestResult{}, fmt.Errorf("%w: %v", ErrNotFound, id)
+}
+
+func (db *InMemoryDB) Save(_ context.Context, result TestResult) (string, error) {
+	if db.store == nil {
+		db.store = make(orderedmap.OrderedMap[string, TestResult])
+	}
+	id := strconv.Itoa(db.nextID)
+	db.nextID++
+	db.store[id] = result
+	return id, nil
 }
