@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -39,11 +40,15 @@ func (er echoRenderer) Render(w io.Writer, name string, data any, _ echo.Context
 // EchoRenderer loads the HTML templates and returns an echo.Renderer for the routes provided by this package. Assign
 // this to the Renderer field of your Echo app (or wrap it with your own)
 func EchoRenderer() (echo.Renderer, error) {
-	t, err := template.ParseFS(templateData, "templates/*.gohtml")
+	tpl := template.New("testy")
+	tpl.Funcs(map[string]any{
+		"anchorForResult": anchorForResult,
+	})
+	tpl, err := tpl.ParseFS(templateData, "templates/*.gohtml")
 	if err != nil {
 		return nil, err
 	}
-	return echoRenderer{templates: t}, nil
+	return echoRenderer{templates: tpl}, nil
 }
 
 // AddEchoRoutes adds routes to an Echo router that can run tests and retrieve tests results.
@@ -143,4 +148,10 @@ func showResult(c echo.Context) error {
 
 func (c listResultsCtx) LinkForID(id string) string {
 	return c.echo.Reverse("showResult", id)
+}
+
+var anchorRegex = regexp.MustCompile(`[^a-zA-Z0-9._:/'()-]`)
+
+func anchorForResult(pkg, name string) string {
+	return string(anchorRegex.ReplaceAll([]byte(pkg+"/"+name), []byte{'_'}))
 }

@@ -8,6 +8,10 @@ import (
 )
 
 func TestTemplates(t *testing.T) {
-	_, err := template.ParseFS(templateData, "templates/*.gohtml")
+	tpl := template.New("testy")
+	tpl.Funcs(map[string]any{
+		"anchorForResult": anchorForResult,
+	})
+	_, err := tpl.ParseFS(templateData, "templates/*.gohtml")
 	assert.NoError(t, err)
 }

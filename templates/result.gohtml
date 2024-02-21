@@ -1,8 +1,8 @@
 {{define "singleResult"}}
-    <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}">
+    <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}" id="{{anchorForResult .Package .Name}}">
         {{- /*gotype: github.com/gametimesf/testy.TestResult*/ -}}
         <td class="nowrap">{{.Package}}</td>
-        <td class="nowrap">{{.Name}}</td>
+        <td class="nowrap"><a href="#{{anchorForResult .Package .Name}}">{{.Name}}</a></td>
         <td class="nowrap">{{.TruncatedTimestamp}}</td>
         <td class="nowrap">{{.DurHuman}}</td>
         <td>{{.Result}}</td>
@@ -64,10 +64,10 @@
             </thead>
             <tbody>
             {{with .Result}}
-                <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}">
+                <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}" id="{{anchorForResult .Package .Name}}">
                     {{- /*gotype: github.com/gametimesf/testy.TestResult*/ -}}
                     <td></td>
-                    <td>{{.Name}}</td>
+                    <td><a href="#{{anchorForResult .Package .Name}}">{{.Name}}</a></td>
                     <td>{{.TruncatedTimestamp}}</td>
                     <td>{{.DurHuman}}</td>
                     <td>{{.Result}}</td>
