@@ -19,9 +19,9 @@ jobs:
           if [ $LINECOUNT -eq 1 ]; then 
             exit 0
           fi
-          for LINE in $RESULT; do
-            echo $LINE
-          done
+          while IFS= read -r LINE; do
+            echo "$LINE"
+          done <<< "$RESULT"
           exit 1
           fi
       - name: Test
