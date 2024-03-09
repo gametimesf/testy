@@ -21,7 +21,6 @@ jobs:
           fi
           for LINE in $RESULT; do
             echo $LINE
-            echo
           done
           exit 1
           fi
