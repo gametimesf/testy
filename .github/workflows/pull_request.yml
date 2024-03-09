@@ -13,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: gofmt
-        run: >
+        run: |
           RESULT=$(gofmt -l -d -e .)
           LINECOUNT=$(echo "$RESULT" | wc -l)
           if [ $LINECOUNT -eq 1 ]; then 
