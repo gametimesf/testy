@@ -11,7 +11,7 @@ import (
 )
 
 // ErrNoDB indicates no DB has been set via SetDB.
-var ErrNoDB = errors.New("no DB set")
+	var ErrNoDB = errors.New("no DB set")
 
 // ErrNotFound indicates the provided result ID was not found in the datastore.
 var ErrNotFound = errors.New("not found")

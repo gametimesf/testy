@@ -13,6 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: gofmt
-        run: if [ "$(gofmt -l -d -e . | wc -l)" -gt 0 ]; then exit 1; fi
+        run: >
+          RESULT=$(gofmt -l -d -e .)
+          LINECOUNT=$(echo "$RESULT" | wc -l)
+          if [ $LINECOUNT -eq 1 ]; then 
+            exit 0
+          fi
+          echo $RESULT
+          exit 1
+          fi
       - name: Test
         run: go test -cover -race ./...
