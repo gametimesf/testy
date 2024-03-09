@@ -16,7 +16,7 @@ import (
 var templateData embed.FS
 
 type listResultsCtx struct {
-	echo      *echo.Echo
+		echo      *echo.Echo
 	Results   []Summary
 	PrevPages []int
 	Page      int
