@@ -19,7 +19,9 @@ jobs:
           if [ $LINECOUNT -eq 1 ]; then 
             exit 0
           fi
-          echo $RESULT
+          for LINE in $RESULT
+            echo "$LINE"
+            echo
           exit 1
           fi
       - name: Test
