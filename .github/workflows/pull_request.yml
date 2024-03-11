@@ -6,15 +6,23 @@ jobs:
   go-checks:
     runs-on: ubuntu-latest
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: '1.21'
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: gofmt
-      uses: gametimesf/github-actions/go/fmt@v0.8.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Test
-      run: go test -cover -race ./...
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.21"
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: gofmt
+        run: |
+          RESULT=$(gofmt -l -d -e .)
+          LINECOUNT=$(echo "$RESULT" | wc -l)
+          if [ $LINECOUNT -eq 1 ]; then 
+            exit 0
+          fi
+          while IFS= read -r LINE; do
+            echo "$LINE"
+          done <<< "$RESULT"
+          exit 1
+          fi
+      - name: Test
+        run: go test -cover -race ./...
