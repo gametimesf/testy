@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gametimesf/testy/internal/orderedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gametimesf/testy/internal/orderedmap"
 )
 
 // know that before/after package/test and the test itself have run and when they were run
