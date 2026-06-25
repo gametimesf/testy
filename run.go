@@ -1,6 +1,7 @@
 package testy
 
 import (
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -8,11 +9,22 @@ import (
 	"time"
 )
 
+// ErrPackageNotFound indicates a requested registered package does not exist.
+var ErrPackageNotFound = errors.New("package not found")
+
 // RunOptions controls how the non-go-test runner executes registered tests.
 type RunOptions struct {
 	// PackageConcurrency is the maximum number of packages executed at once.
 	// Values <= 1 preserve the historical serial package execution behavior.
 	PackageConcurrency int
+}
+
+// PackageSpec describes a package registered with testy.
+type PackageSpec struct {
+	// Name is the package import path.
+	Name string
+	// Index is the package's deterministic registration-order index.
+	Index int
 }
 
 // RunAsTest runs all registered tests under Go's testing framework.
@@ -102,13 +114,9 @@ func Run() TestResult {
 // RunWithOptions runs all registered tests and returns result information about them.
 func RunWithOptions(opts RunOptions) TestResult {
 	start := time.Now()
-	results := TestResult{
-		Name:    "Test Suite",
-		Started: start,
-	}
 
 	pkgs := collectPackages()
-	results.Subtests = make([]TestResult, len(pkgs))
+	packageResults := make([]TestResult, len(pkgs))
 
 	packageConcurrency := opts.PackageConcurrency
 	if packageConcurrency < 1 {
@@ -117,14 +125,52 @@ func RunWithOptions(opts RunOptions) TestResult {
 
 	if packageConcurrency == 1 {
 		for i := range pkgs {
-			results.Subtests[i] = runPackage(pkgs[i].name, pkgs[i].tests)
+			packageResults[i] = runPackage(pkgs[i].name, pkgs[i].tests)
 		}
 	} else {
-		runPackagesConcurrently(pkgs, results.Subtests, packageConcurrency)
+		runPackagesConcurrently(pkgs, packageResults, packageConcurrency)
+	}
+
+	return BuildSuiteResult(start, packageResults)
+}
+
+// ListPackages returns the registered packages in deterministic execution order.
+//
+// The returned package list is intentionally independent from any execution
+// backend. Callers that want to orchestrate package execution outside this
+// process, such as a durable workflow engine, can use the package names with
+// RunPackage and then combine the package results with BuildSuiteResult.
+func ListPackages() []PackageSpec {
+	pkgs := collectPackages()
+	specs := make([]PackageSpec, len(pkgs))
+	for i, pkg := range pkgs {
+		specs[i] = PackageSpec{
+			Name:  pkg.name,
+			Index: i,
+		}
+	}
+	return specs
+}
+
+// RunPackage runs a single registered package by import path.
+func RunPackage(pkg string) (TestResult, error) {
+	pkgTests, ok := instance.tests[pkg]
+	if !ok {
+		return TestResult{}, fmt.Errorf("%w: %s", ErrPackageNotFound, pkg)
+	}
+	return runPackage(pkg, pkgTests), nil
+}
+
+// BuildSuiteResult combines package-level results into a suite-level result.
+func BuildSuiteResult(start time.Time, packageResults []TestResult) TestResult {
+	results := TestResult{
+		Name:     "Test Suite",
+		Started:  start,
+		Subtests: packageResults,
 	}
 
 	r := ResultPassed
-	for _, pkgResult := range results.Subtests {
+	for _, pkgResult := range packageResults {
 		if pkgResult.Result == ResultFailed {
 			r = ResultFailed
 			break
