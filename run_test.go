@@ -1,9 +1,12 @@
 package testy
 
 import (
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gametimesf/testy/internal/orderedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -441,5 +444,81 @@ func TestRun(t *testing.T) {
 			// look into the test suite results and the package results
 			tc.validate(t, res.Subtests[0].Subtests[0])
 		})
+	}
+}
+
+func TestRunWithOptionsRunsPackagesConcurrentlyAndPreservesOrder(t *testing.T) {
+	instance = testy{
+		tests: orderedmap.OrderedMap[string, *testPkg]{},
+	}
+	defer func() {
+		instance = testy{}
+	}()
+
+	started := make(chan string, 3)
+	release := make(chan struct{})
+	var running int32
+	var maxRunning int32
+
+	for i := 0; i < 3; i++ {
+		pkg := fmt.Sprintf("github.com/gametimesf/testy/concurrency/pkg%d", i)
+		testName := fmt.Sprintf("test%d", i)
+		instance.tests[pkg] = &testPkg{
+			name:  pkg,
+			tests: orderedmap.OrderedMap[string, testCase]{},
+		}
+		instance.tests[pkg].tests[testName] = testCase{
+			Package: pkg,
+			Name:    testName,
+			tester: func(t TestingT) {
+				nowRunning := atomic.AddInt32(&running, 1)
+				for {
+					max := atomic.LoadInt32(&maxRunning)
+					if nowRunning <= max || atomic.CompareAndSwapInt32(&maxRunning, max, nowRunning) {
+						break
+					}
+				}
+				started <- pkg
+				<-release
+				atomic.AddInt32(&running, -1)
+			},
+		}
+	}
+
+	done := make(chan TestResult, 1)
+	go func() {
+		done <- RunWithOptions(RunOptions{PackageConcurrency: 2})
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for package %d to start", i+1)
+		}
+	}
+
+	select {
+	case pkg := <-started:
+		t.Fatalf("package %s started before a concurrency slot was released", pkg)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+
+	var res TestResult
+	select {
+	case res = <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for concurrent run to finish")
+	}
+
+	assert.LessOrEqual(t, atomic.LoadInt32(&maxRunning), int32(2))
+	assert.Equal(t, ResultPassed, res.Result)
+	require.Len(t, res.Subtests, 3)
+	for i, pkgResult := range res.Subtests {
+		assert.Equal(t, fmt.Sprintf("github.com/gametimesf/testy/concurrency/pkg%d", i), pkgResult.Package)
+		require.Len(t, pkgResult.Subtests, 1)
+		assert.Equal(t, fmt.Sprintf("test%d", i), pkgResult.Subtests[0].Name)
 	}
 }
