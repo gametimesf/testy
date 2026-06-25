@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+// RunOptions controls how the non-go-test runner executes registered tests.
+type RunOptions struct {
+	// PackageConcurrency is the maximum number of packages executed at once.
+	// Values <= 1 preserve the historical serial package execution behavior.
+	PackageConcurrency int
+}
+
 // RunAsTest runs all registered tests under Go's testing framework.
 //
 // To run tests on a per-package basis, put a test file in each package containing a single test that calls this function.
@@ -89,182 +96,231 @@ func RunAsTest(t *testing.T) {
 //
 // TODO: channel for results to support progressive result loading?
 func Run() TestResult {
+	return RunWithOptions(RunOptions{PackageConcurrency: 1})
+}
+
+// RunWithOptions runs all registered tests and returns result information about them.
+func RunWithOptions(opts RunOptions) TestResult {
 	start := time.Now()
 	results := TestResult{
 		Name:    "Test Suite",
 		Started: start,
 	}
-	anyFailures := false
 
-	// TODO run packages in parallel like go test does
-	instance.tests.Iterate(func(pkg string, pkgTests *testPkg) bool {
-		pkgStart := time.Now()
-		results.Subtests = append(results.Subtests, TestResult{
-			Package: pkg,
-			Name:    "Package",
-			Started: pkgStart,
-		})
-		pkgResults := &results.Subtests[len(results.Subtests)-1]
+	pkgs := collectPackages()
+	results.Subtests = make([]TestResult, len(pkgs))
 
-		pkgHelperT := &t{}
-		pkgAnyFailures := false
+	packageConcurrency := opts.PackageConcurrency
+	if packageConcurrency < 1 {
+		packageConcurrency = 1
+	}
 
-		// we have to hold onto any panics here to be able to run AfterPackage
-		var beforePkgErr any
-		if pkgTests.BeforePackage != nil {
-			func() {
-				defer func() {
-					if beforePkgErr = recover(); beforePkgErr != nil {
-						beforePkgErr = fmt.Sprintf("before package: %v\n\n%s", beforePkgErr, debug.Stack())
-					}
-				}()
-				pkgTests.BeforePackage(pkgHelperT)
-			}()
-
-			if beforePkgErr != nil {
-				pkgAnyFailures = true
-				pkgResults.Msgs = []Msg{
-					{
-						Msg:   fmt.Sprintf("%v", beforePkgErr),
-						Level: LevelError,
-					},
-				}
-			}
+	if packageConcurrency == 1 {
+		for i := range pkgs {
+			results.Subtests[i] = runPackage(pkgs[i].name, pkgs[i].tests)
 		}
-
-		// we still have to iterate even if there was a BeforePackage panic to be able to fail all the tests
-		pkgTests.tests.Iterate(func(name string, test testCase) bool {
-			// only run the tests if BeforePackage didn't panic
-			if beforePkgErr == nil {
-				testHelperT := &t{}
-
-				// we have to hold onto any panics here to be able to run AfterTest
-				var beforeTestErr any
-				if pkgTests.BeforeTest != nil {
-					func() {
-						defer func() {
-							if beforeTestErr = recover(); beforeTestErr != nil {
-								beforeTestErr = fmt.Sprintf("before test: %v\n\n%s", beforeTestErr, debug.Stack())
-							}
-						}()
-						pkgTests.BeforeTest(testHelperT)
-					}()
-				}
-
-				// only run the tests if any BeforeTest didn't panic
-				if beforeTestErr == nil {
-					res := runTest(pkg, test.Name, test.tester)
-					if res.Result == ResultFailed {
-						pkgAnyFailures = true
-					}
-					pkgResults.Subtests = append(pkgResults.Subtests, res)
-				} else {
-					pkgAnyFailures = true
-					pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
-						Package:  pkg,
-						Name:     name,
-						Started:  time.Now(),
-						Result:   ResultFailed,
-						Dur:      0,
-						DurHuman: "0s",
-						Msgs: append(testHelperT.msgs, Msg{
-							Msg:   fmt.Sprintf("%v", beforeTestErr),
-							Level: LevelError,
-						}),
-					})
-				}
-
-				if pkgTests.AfterTest != nil {
-					var afterTestErr any
-					func() {
-						defer func() {
-							if afterTestErr = recover(); afterTestErr != nil {
-								afterTestErr = fmt.Sprintf("after test: %v\n\n%s", afterTestErr, debug.Stack())
-							}
-						}()
-						pkgTests.AfterTest(testHelperT)
-					}()
-
-					if afterTestErr != nil {
-						pkgAnyFailures = true
-						// update test results marking it failed and with this panic message.
-						r := &pkgResults.Subtests[len(pkgResults.Subtests)-1]
-						r.Result = ResultFailed
-						r.Msgs = append(r.Msgs, append(testHelperT.msgs, Msg{
-							Msg:   fmt.Sprintf("%v", afterTestErr),
-							Level: LevelError,
-						})...)
-					}
-				}
-			} else {
-				pkgAnyFailures = true
-				// BeforePackage panicked, so simply mark the test as failed with its message
-				pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
-					Package:  pkg,
-					Name:     name,
-					Started:  pkgStart,
-					Result:   ResultFailed,
-					Dur:      0,
-					DurHuman: "0s",
-					Msgs: append(pkgHelperT.msgs, Msg{
-						Msg:   fmt.Sprintf("%v", beforePkgErr),
-						Level: LevelError,
-					}),
-				})
-			}
-
-			return true
-		})
-
-		var afterPkgErr any
-		if pkgTests.AfterPackage != nil {
-			func() {
-				defer func() {
-					if afterPkgErr = recover(); afterPkgErr != nil {
-						afterPkgErr = fmt.Sprintf("after package: %v\n\n%s", afterPkgErr, debug.Stack())
-					}
-				}()
-				pkgTests.AfterPackage(pkgHelperT)
-			}()
-		}
-
-		// update test results if AfterPackage panicked
-		if afterPkgErr != nil {
-			pkgAnyFailures = true
-			m := Msg{
-				Msg:   fmt.Sprintf("%v", afterPkgErr),
-				Level: LevelError,
-			}
-			for i := range pkgResults.Subtests {
-				r := &pkgResults.Subtests[i]
-				r.Result = ResultFailed
-				r.Msgs = append(r.Msgs, append(pkgHelperT.msgs, m)...)
-			}
-			pkgResults.Msgs = append(pkgResults.Msgs, m)
-		}
-
-		r := ResultPassed
-		if pkgAnyFailures {
-			r = ResultFailed
-			anyFailures = true
-		}
-		pkgResults.Result = r
-		dur := time.Since(pkgStart).Round(time.Millisecond)
-		pkgResults.Dur = dur
-		pkgResults.DurHuman = dur.String()
-
-		return true
-	})
+	} else {
+		runPackagesConcurrently(pkgs, results.Subtests, packageConcurrency)
+	}
 
 	r := ResultPassed
-	if anyFailures {
-		r = ResultFailed
+	for _, pkgResult := range results.Subtests {
+		if pkgResult.Result == ResultFailed {
+			r = ResultFailed
+			break
+		}
 	}
 	results.Result = r
 	dur := time.Since(start).Round(time.Millisecond)
 	results.Dur = dur
 	results.DurHuman = dur.String()
 	return results
+}
+
+func runPackagesConcurrently(pkgs []runPackageInput, results []TestResult, packageConcurrency int) {
+	sem := make(chan struct{}, packageConcurrency)
+	wg := sync.WaitGroup{}
+	for i := range pkgs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = runPackage(pkgs[i].name, pkgs[i].tests)
+		}(i)
+	}
+	wg.Wait()
+}
+
+type runPackageInput struct {
+	name  string
+	tests *testPkg
+}
+
+func collectPackages() []runPackageInput {
+	var pkgs []runPackageInput
+	instance.tests.Iterate(func(pkg string, pkgTests *testPkg) bool {
+		pkgs = append(pkgs, runPackageInput{name: pkg, tests: pkgTests})
+		return true
+	})
+	return pkgs
+}
+
+func runPackage(pkg string, pkgTests *testPkg) TestResult {
+	pkgStart := time.Now()
+	pkgResults := TestResult{
+		Package: pkg,
+		Name:    "Package",
+		Started: pkgStart,
+	}
+
+	pkgHelperT := &t{}
+	pkgAnyFailures := false
+
+	// we have to hold onto any panics here to be able to run AfterPackage
+	var beforePkgErr any
+	if pkgTests.BeforePackage != nil {
+		func() {
+			defer func() {
+				if beforePkgErr = recover(); beforePkgErr != nil {
+					beforePkgErr = fmt.Sprintf("before package: %v\n\n%s", beforePkgErr, debug.Stack())
+				}
+			}()
+			pkgTests.BeforePackage(pkgHelperT)
+		}()
+
+		if beforePkgErr != nil {
+			pkgAnyFailures = true
+			pkgResults.Msgs = []Msg{
+				{
+					Msg:   fmt.Sprintf("%v", beforePkgErr),
+					Level: LevelError,
+				},
+			}
+		}
+	}
+
+	// we still have to iterate even if there was a BeforePackage panic to be able to fail all the tests
+	pkgTests.tests.Iterate(func(name string, test testCase) bool {
+		// only run the tests if BeforePackage didn't panic
+		if beforePkgErr == nil {
+			testHelperT := &t{}
+
+			// we have to hold onto any panics here to be able to run AfterTest
+			var beforeTestErr any
+			if pkgTests.BeforeTest != nil {
+				func() {
+					defer func() {
+						if beforeTestErr = recover(); beforeTestErr != nil {
+							beforeTestErr = fmt.Sprintf("before test: %v\n\n%s", beforeTestErr, debug.Stack())
+						}
+					}()
+					pkgTests.BeforeTest(testHelperT)
+				}()
+			}
+
+			// only run the tests if any BeforeTest didn't panic
+			if beforeTestErr == nil {
+				res := runTest(pkg, test.Name, test.tester)
+				if res.Result == ResultFailed {
+					pkgAnyFailures = true
+				}
+				pkgResults.Subtests = append(pkgResults.Subtests, res)
+			} else {
+				pkgAnyFailures = true
+				pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
+					Package:  pkg,
+					Name:     name,
+					Started:  time.Now(),
+					Result:   ResultFailed,
+					Dur:      0,
+					DurHuman: "0s",
+					Msgs: append(testHelperT.msgs, Msg{
+						Msg:   fmt.Sprintf("%v", beforeTestErr),
+						Level: LevelError,
+					}),
+				})
+			}
+
+			if pkgTests.AfterTest != nil {
+				var afterTestErr any
+				func() {
+					defer func() {
+						if afterTestErr = recover(); afterTestErr != nil {
+							afterTestErr = fmt.Sprintf("after test: %v\n\n%s", afterTestErr, debug.Stack())
+						}
+					}()
+					pkgTests.AfterTest(testHelperT)
+				}()
+
+				if afterTestErr != nil {
+					pkgAnyFailures = true
+					// update test results marking it failed and with this panic message.
+					r := &pkgResults.Subtests[len(pkgResults.Subtests)-1]
+					r.Result = ResultFailed
+					r.Msgs = append(r.Msgs, append(testHelperT.msgs, Msg{
+						Msg:   fmt.Sprintf("%v", afterTestErr),
+						Level: LevelError,
+					})...)
+				}
+			}
+		} else {
+			pkgAnyFailures = true
+			// BeforePackage panicked, so simply mark the test as failed with its message
+			pkgResults.Subtests = append(pkgResults.Subtests, TestResult{
+				Package:  pkg,
+				Name:     name,
+				Started:  pkgStart,
+				Result:   ResultFailed,
+				Dur:      0,
+				DurHuman: "0s",
+				Msgs: append(pkgHelperT.msgs, Msg{
+					Msg:   fmt.Sprintf("%v", beforePkgErr),
+					Level: LevelError,
+				}),
+			})
+		}
+
+		return true
+	})
+
+	var afterPkgErr any
+	if pkgTests.AfterPackage != nil {
+		func() {
+			defer func() {
+				if afterPkgErr = recover(); afterPkgErr != nil {
+					afterPkgErr = fmt.Sprintf("after package: %v\n\n%s", afterPkgErr, debug.Stack())
+				}
+			}()
+			pkgTests.AfterPackage(pkgHelperT)
+		}()
+	}
+
+	// update test results if AfterPackage panicked
+	if afterPkgErr != nil {
+		pkgAnyFailures = true
+		m := Msg{
+			Msg:   fmt.Sprintf("%v", afterPkgErr),
+			Level: LevelError,
+		}
+		for i := range pkgResults.Subtests {
+			r := &pkgResults.Subtests[i]
+			r.Result = ResultFailed
+			r.Msgs = append(r.Msgs, append(pkgHelperT.msgs, m)...)
+		}
+		pkgResults.Msgs = append(pkgResults.Msgs, m)
+	}
+
+	r := ResultPassed
+	if pkgAnyFailures {
+		r = ResultFailed
+	}
+	pkgResults.Result = r
+	dur := time.Since(pkgStart).Round(time.Millisecond)
+	pkgResults.Dur = dur
+	pkgResults.DurHuman = dur.String()
+
+	return pkgResults
 }
 
 func runTest(pkg, baseName string, tester Tester) TestResult {
