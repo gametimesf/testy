@@ -1,6 +1,7 @@
 package testy
 
 import (
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -20,6 +21,60 @@ func succeeds(ts *time.Time) Tester {
 	return func(TestingT) {
 		*ts = time.Now()
 	}
+}
+
+func TestPackageRunnerAPI(t *testing.T) {
+	instance = testy{
+		tests: orderedmap.OrderedMap[string, *testPkg]{},
+	}
+	defer func() {
+		instance = testy{}
+	}()
+
+	for i := 0; i < 2; i++ {
+		pkg := fmt.Sprintf("github.com/gametimesf/testy/packageapi/pkg%d", i)
+		testName := fmt.Sprintf("test%d", i)
+		instance.tests[pkg] = &testPkg{
+			name:  pkg,
+			tests: orderedmap.OrderedMap[string, testCase]{},
+		}
+		instance.tests[pkg].tests[testName] = testCase{
+			Package: pkg,
+			Name:    testName,
+			tester:  succeeds(&tt),
+		}
+	}
+
+	pkgs := ListPackages()
+	require.Equal(t, []PackageSpec{
+		{Name: "github.com/gametimesf/testy/packageapi/pkg0", Index: 0},
+		{Name: "github.com/gametimesf/testy/packageapi/pkg1", Index: 1},
+	}, pkgs)
+
+	start := time.Now()
+	packageResults := make([]TestResult, len(pkgs))
+	for _, pkg := range pkgs {
+		res, err := RunPackage(pkg.Name)
+		require.NoError(t, err)
+		packageResults[pkg.Index] = res
+	}
+	suite := BuildSuiteResult(start, packageResults)
+
+	assert.Equal(t, ResultPassed, suite.Result)
+	require.Len(t, suite.Subtests, 2)
+	assert.Equal(t, "github.com/gametimesf/testy/packageapi/pkg0", suite.Subtests[0].Package)
+	assert.Equal(t, "github.com/gametimesf/testy/packageapi/pkg1", suite.Subtests[1].Package)
+}
+
+func TestRunPackageReturnsErrPackageNotFound(t *testing.T) {
+	instance = testy{}
+	defer func() {
+		instance = testy{}
+	}()
+
+	_, err := RunPackage("github.com/gametimesf/testy/missing")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrPackageNotFound))
 }
 func panics(ts *time.Time) Tester {
 	return func(TestingT) {
