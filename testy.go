@@ -156,6 +156,14 @@ func (tr TestResult) SumTestStats() (total, passed, failed int) {
 		passed += p
 		failed += f
 	}
+	if tr.Result == ResultFailed && failed == 0 {
+		// The node itself failed even though every leaf under it passed —
+		// e.g. an error raised in the parent test body or its cleanup after
+		// subtests completed. Count it so totals cannot report 100% passed
+		// for a failed tree.
+		total++
+		failed++
+	}
 	return total, passed, failed
 }
 
@@ -201,6 +209,12 @@ func (tr TestResult) FindFailingTests() []TestResult {
 	var res []TestResult
 	for _, st := range tr.Subtests {
 		res = append(res, st.FindFailingTests()...)
+	}
+	if len(res) == 0 {
+		// This node failed but every subtest passed — the failure lives in
+		// the parent itself (test body after subtests, or cleanup). Report
+		// this node so the failure is attributable.
+		return []TestResult{tr}
 	}
 	return res
 }

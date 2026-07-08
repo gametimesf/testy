@@ -112,6 +112,23 @@ func TestSumTestStats(t *testing.T) {
 		assert.Equal(t, passed, 0)
 		assert.Equal(t, failed, 1)
 	})
+
+	t.Run("failed parent with passing leaves counts its own failure", func(t *testing.T) {
+		// e.g. an error in the parent test body or cleanup after all
+		// subtests passed - totals must not report 100% passed.
+		tr := TestResult{
+			Name:   "parent",
+			Result: ResultFailed,
+			Subtests: []TestResult{
+				{Name: "leaf 1", Result: ResultPassed},
+				{Name: "leaf 2", Result: ResultPassed},
+			},
+		}
+		total, passed, failed := tr.SumTestStats()
+		assert.Equal(t, total, 3)
+		assert.Equal(t, passed, 2)
+		assert.Equal(t, failed, 1)
+	})
 }
 
 func TestFindFailingTests(t *testing.T) {
@@ -139,6 +156,20 @@ func TestFindFailingTests(t *testing.T) {
 	t.Run("tree 5", func(t *testing.T) {
 		failed := testResultTestData.Subtests[4].FindFailingTests()
 		assert.Len(t, failed, 0)
+	})
+
+	t.Run("failed parent with passing leaves returns the parent", func(t *testing.T) {
+		tr := TestResult{
+			Name:   "parent",
+			Result: ResultFailed,
+			Subtests: []TestResult{
+				{Name: "leaf 1", Result: ResultPassed},
+				{Name: "leaf 2", Result: ResultPassed},
+			},
+		}
+		failed := tr.FindFailingTests()
+		require.Len(t, failed, 1)
+		assert.Equal(t, "parent", failed[0].Name)
 	})
 
 	t.Run("tree 2 intermediate 1", func(t *testing.T) {
