@@ -2,13 +2,14 @@ package testy
 
 import (
 	"context"
-	"github.com/gametimesf/testy/internal/orderedmap"
 	"os"
 	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gametimesf/testy/internal/orderedmap"
 )
 
 func lifecycleExercise(t TestingT, mode string, record func(string)) {
