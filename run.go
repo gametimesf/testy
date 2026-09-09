@@ -1,6 +1,7 @@
 package testy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -60,9 +61,10 @@ func RunAsTest(t *testing.T) {
 				t.Run(test.Name, func(tt *testing.T) {
 					tt.Helper()
 
-					// if we have an AfterTest, defer it so it always runs even if BeforeTest or the test itself panic
+					// Register enclosing teardown before the test lifecycle so it runs
+					// after resource cleanup, including fatal/panic and parallel children.
 					if pkgTests.AfterTest != nil {
-						defer pkgTests.AfterTest(tWrapper{t: tt})
+						tt.Cleanup(func() { pkgTests.AfterTest(tWrapper{t: tt}) })
 					}
 
 					// if we have a BeforeTest, just run it directly; panics will sort themselves out
@@ -70,7 +72,7 @@ func RunAsTest(t *testing.T) {
 						pkgTests.BeforeTest(tWrapper{t: tt})
 					}
 
-					test.tester(tWrapper{t: tt})
+					test.tester(newTWrapper(tt, context.Background()))
 				})
 				return true
 			})
@@ -370,6 +372,10 @@ func runPackage(pkg string, pkgTests *testPkg) TestResult {
 }
 
 func runTest(pkg, baseName string, tester Tester) TestResult {
+	return runTestContext(context.Background(), pkg, baseName, tester)
+}
+
+func runTestContext(ctx context.Context, pkg, baseName string, tester Tester) TestResult {
 	result := TestResult{
 		Package: pkg,
 		Name:    baseName,
@@ -378,6 +384,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	subtests := make(chan subtest)
 	subtestDone := make(chan bool)
 	t := &t{
+		lifecycle:   newLifecycle(ctx),
 		name:        baseName,
 		tester:      tester,
 		subtests:    subtests,
@@ -391,7 +398,7 @@ func runTest(pkg, baseName string, tester Tester) TestResult {
 	go func() {
 		defer stWg.Done()
 		for st := range subtests {
-			stResult := runTest(pkg, baseName+"/"+st.name, st.tester)
+			stResult := runTestContext(t.Context(), pkg, baseName+"/"+st.name, st.tester)
 			if stResult.Result == ResultFailed {
 				// TODO does this need to be an atomic operation?
 				anyFailures = true

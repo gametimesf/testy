@@ -1,12 +1,14 @@
 package testy
 
 import (
+	"context"
 	"testing"
 )
 
 // tWrapper wraps a real testing.T, because Run takes a concrete implementation.
 type tWrapper struct {
-	t *testing.T
+	t         *testing.T
+	lifecycle *lifecycle
 }
 
 var _ TestingT = (*tWrapper)(nil)
@@ -55,10 +57,40 @@ func (t tWrapper) Run(s string, tester Tester) bool {
 	t.t.Helper()
 	return t.t.Run(s, func(tt *testing.T) {
 		t.t.Helper()
-		tester(tWrapper{t: tt})
+		parent := context.Background()
+		if t.lifecycle != nil {
+			parent = t.lifecycle.ctx
+		}
+		tester(newTWrapper(tt, parent))
 	})
 }
 
 func (t tWrapper) Parallel() {
 	t.t.Parallel()
+}
+
+func newTWrapper(t *testing.T, parent context.Context) tWrapper {
+	l := newLifecycle(parent)
+	if deadline, ok := t.Deadline(); ok {
+		ctx, cancel := context.WithDeadline(l.ctx, deadline)
+		l.ctx = ctx
+		previousCancel := l.cancel
+		l.cancel = func() { cancel(); previousCancel() }
+	}
+	t.Cleanup(l.finish)
+	return tWrapper{t: t, lifecycle: l}
+}
+
+func (t tWrapper) Cleanup(f func()) {
+	if t.lifecycle == nil {
+		panic("testy: Cleanup is only supported in Test and Run callbacks")
+	}
+	t.lifecycle.add(f)
+}
+
+func (t tWrapper) Context() context.Context {
+	if t.lifecycle == nil {
+		panic("testy: Context is only supported in Test and Run callbacks")
+	}
+	return t.lifecycle.ctx
 }

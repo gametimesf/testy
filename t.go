@@ -1,12 +1,14 @@
 package testy
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"strings"
 )
 
 type t struct {
+	lifecycle   *lifecycle
 	name        string
 	tester      Tester
 	failed      bool
@@ -38,6 +40,7 @@ func (t *t) run() {
 		close(t.subtests)
 	}()
 
+	defer t.lifecycle.finish()
 	t.tester(t)
 }
 
@@ -95,3 +98,17 @@ func (t *t) Run(name string, tester Tester) bool {
 // Parallel does nothing for this implementation.
 // TODO figure out how to support it.
 func (*t) Parallel() {}
+
+func (t *t) Cleanup(f func()) {
+	if t.lifecycle == nil {
+		panic("testy: Cleanup is only supported in Test and Run callbacks")
+	}
+	t.lifecycle.add(f)
+}
+
+func (t *t) Context() context.Context {
+	if t.lifecycle == nil {
+		panic("testy: Context is only supported in Test and Run callbacks")
+	}
+	return t.lifecycle.ctx
+}
