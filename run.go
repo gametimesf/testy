@@ -72,7 +72,7 @@ func RunAsTest(t *testing.T) {
 						pkgTests.BeforeTest(tWrapper{t: tt})
 					}
 
-					test.tester(newTWrapper(tt, context.Background()))
+					newTWrapper(tt, context.Background()).run(test.tester)
 				})
 				return true
 			})
@@ -173,10 +173,7 @@ func BuildSuiteResult(start time.Time, packageResults []TestResult) TestResult {
 
 	r := ResultPassed
 	for _, pkgResult := range packageResults {
-		if pkgResult.Result == ResultFailed {
-			r = ResultFailed
-			break
-		}
+		r = combineResults(r, pkgResult.Result)
 	}
 	results.Result = r
 	dur := time.Since(start).Round(time.Millisecond)
@@ -360,6 +357,9 @@ func runPackage(pkg string, pkgTests *testPkg) TestResult {
 	}
 
 	r := ResultPassed
+	for _, child := range pkgResults.Subtests {
+		r = combineResults(r, child.Result)
+	}
 	if pkgAnyFailures {
 		r = ResultFailed
 	}
@@ -426,9 +426,19 @@ func runTestContext(ctx context.Context, pkg, baseName string, tester Tester) Te
 	dur := time.Since(start).Round(time.Millisecond)
 
 	r := ResultPassed
+	for _, child := range result.Subtests {
+		r = combineResults(r, child.Result)
+	}
+	if t.skipped {
+		r = ResultSkipped
+		if len(result.Subtests) > 0 {
+			r = ResultIncomplete
+		}
+	}
 	if t.failed || anyFailures {
 		r = ResultFailed
 	}
+	result.SkipReason = t.skipReason
 	result.Msgs = t.msgs
 	result.Result = r
 	result.Started = start

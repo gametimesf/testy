@@ -40,6 +40,8 @@ type TestResult struct {
 	Msgs []Msg
 	// Result is the result of the test.
 	Result Result
+	// SkipReason records an explicit skip request, even if a later failure wins.
+	SkipReason string `json:",omitempty"`
 	// Started is when the test was started.
 	Started time.Time
 	// Dur is how long the test took.
@@ -68,6 +70,10 @@ const (
 	ResultPassed Result = "passed"
 	// ResultFailed indicates that this test or at least one of its subtests failed.
 	ResultFailed Result = "failed"
+	// ResultSkipped indicates this test explicitly skipped execution. It is not a pass.
+	ResultSkipped Result = "skipped"
+	// ResultIncomplete indicates a nonfailed container with skipped coverage.
+	ResultIncomplete Result = "incomplete"
 )
 
 type Msg struct {
@@ -140,31 +146,60 @@ func sanitizeName(r rune) rune {
 	}
 }
 
-// SumTestStats returns the total number of leaf subtests, as well as the number of those that passed and failed.
+// SumTestStats returns total, passed and failed counts. Skipped tests are in
+// total but NOT passed; use SumTestStatsWithSkipped for complete coverage counts.
 func (tr TestResult) SumTestStats() (total, passed, failed int) {
+	total, passed, failed, _ = tr.SumTestStatsWithSkipped()
+	return
+}
+
+// SumTestStatsWithSkipped counts leaf outcomes and parent-only failures/skips.
+// Unknown leaf outcomes are conservatively counted as failed, never passed.
+func (tr TestResult) SumTestStatsWithSkipped() (total, passed, failed, skipped int) {
 	if len(tr.Subtests) == 0 {
-		if tr.Result == ResultFailed {
-			return 1, 0, 1
-		} else {
-			return 1, 1, 0
+		switch tr.Result {
+		case ResultPassed:
+			return 1, 1, 0, 0
+		case ResultSkipped, ResultIncomplete:
+			return 1, 0, 0, 1
+		default:
+			return 1, 0, 1, 0
 		}
 	}
-
 	for _, st := range tr.Subtests {
-		t, p, f := st.SumTestStats()
+		t, p, f, s := st.SumTestStatsWithSkipped()
 		total += t
 		passed += p
 		failed += f
+		skipped += s
 	}
 	if tr.Result == ResultFailed && failed == 0 {
-		// The node itself failed even though every leaf under it passed —
-		// e.g. an error raised in the parent test body or its cleanup after
-		// subtests completed. Count it so totals cannot report 100% passed
-		// for a failed tree.
+		// Attribute a body/cleanup failure even if all children passed or skipped.
 		total++
 		failed++
+	} else if (tr.Result == ResultSkipped || tr.Result == ResultIncomplete) && skipped == 0 {
+		// The parent skipped remaining work after its children completed.
+		total++
+		skipped++
 	}
-	return total, passed, failed
+	return
+}
+
+// SkippedSubtests returns skipped coverage, including a parent-only skip.
+func (tr TestResult) SkippedSubtests() int {
+	_, _, _, skipped := tr.SumTestStatsWithSkipped()
+	return skipped
+}
+
+// combineResults preserves failure precedence and exposes incomplete coverage.
+func combineResults(current, next Result) Result {
+	if current == ResultFailed || next == ResultFailed {
+		return ResultFailed
+	}
+	if current != ResultPassed || next != ResultPassed {
+		return ResultIncomplete
+	}
+	return ResultPassed
 }
 
 // TotalSubtests returns the total number of leaf subtests.

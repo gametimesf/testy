@@ -13,20 +13,22 @@
                 <tr>
                     <th scope="col">Start Time</th>
                     <th scope="col">Duration</th>
-                    <th scope="col">Total Tests Executed</th>
+                    <th scope="col">Total Tests</th>
                     <th scope="col">Tests Passed</th>
                     <th scope="col">Tests Failed</th>
+                    <th scope="col">Tests Skipped</th>
                 </tr>
             </thead>
             <tbody>
             {{- /*gotype: github.com/gametimesf/testy.listResultsCtx*/ -}}
             {{range .Results}}
-                <tr class="{{if eq .Total .Passed}}table-success{{else}}table-danger{{end}}">
+                <tr class="{{if eq .Total .Passed}}table-success{{else if .Failed}}table-danger{{else}}table-warning{{end}}">
                     <td><a href="{{$.LinkForID .ID}}">{{.TruncatedTimestamp}}</a></td>
                     <td>{{.Dur}}</td>
                     <td>{{.Total}}</td>
                     <td style="color:{{if eq .Total .Passed}}green{{else}}red{{end}}">{{.Passed}}</td>
                     <td style="color:{{if eq .Total .Passed}}green{{else}}red{{end}}">{{.Failed}}</td>
+                    <td>{{.Skipped}}</td>
                 </tr>
             {{end}}
             </tbody>
