@@ -61,7 +61,7 @@ func (t tWrapper) Run(s string, tester Tester) bool {
 		if t.lifecycle != nil {
 			parent = t.lifecycle.ctx
 		}
-		tester(newTWrapper(tt, parent))
+		newTWrapper(tt, parent).run(tester)
 	})
 }
 
@@ -85,7 +85,19 @@ func (t tWrapper) Cleanup(f func()) {
 	if t.lifecycle == nil {
 		panic("testy: Cleanup is only supported in Test and Run callbacks")
 	}
-	t.lifecycle.add(f)
+	if f == nil {
+		panic("testy: nil cleanup")
+	}
+	t.lifecycle.add(func() {
+		// Mark the failure before another callback can mask this panic with Goexit.
+		defer func() {
+			if err := recover(); err != nil {
+				t.t.Errorf("panic: %+v", err)
+				panic(err)
+			}
+		}()
+		f()
+	})
 }
 
 func (t tWrapper) Context() context.Context {
@@ -93,4 +105,24 @@ func (t tWrapper) Context() context.Context {
 		panic("testy: Context is only supported in Test and Run callbacks")
 	}
 	return t.lifecycle.ctx
+}
+
+func (t tWrapper) Skipf(format string, args ...interface{}) {
+	if t.lifecycle == nil {
+		panic("testy: Skipf is only supported in Test and Run callbacks")
+	}
+	t.t.Helper()
+	t.t.Skipf(format, args...)
+}
+
+func (t tWrapper) Skipped() bool { return t.t.Skipped() }
+
+func (t tWrapper) run(tester Tester) {
+	defer func() {
+		if err := recover(); err != nil {
+			t.t.Errorf("panic: %+v", err)
+			panic(err)
+		}
+	}()
+	tester(t)
 }

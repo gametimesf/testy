@@ -47,3 +47,22 @@ subtest scheduling, and do not use a parent's `defer` to release resources neede
 by native parallel children. Cleanup waits for those children in native runs.
 These callbacks cannot recover resources after process termination; persistent
 fixture providers must retain ownership and support external reconciliation.
+
+## Skipped prerequisites
+
+`testy.Skipf(t, "reason: %s", detail)` stops a case whose prerequisites cannot
+be established, while running defers and registered cleanup. Use only at explicit
+prerequisite boundaries, not to suppress product assertion failures. The native
+runner uses Go's skipped status; hosted results retain `SkipReason`, including
+when a prior or later failure overrides the skip. `testy.Skipped(t)` lets cleanup
+adapters identify an explicit skip; it does not mean that the test has not failed.
+These optional capabilities do not add methods to `TestingT`.
+
+Hosted skipped leaves are `skipped`; nonfailed containers with skipped coverage
+are `incomplete`, never `passed`. `SumTestStatsWithSkipped` returns total, passed,
+failed and skipped counts. The existing `SumTestStats` signature is preserved,
+but its total includes skipped tests without counting them as passed. Result
+consumers must handle incomplete coverage explicitly before enabling skips.
+Any `Fail`, `Errorf`, fatal error or panic, including during cleanup, remains a
+failure. A prerequisite-specific best-effort cleanup policy must report warnings
+explicitly instead of weakening these generic failure semantics.

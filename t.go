@@ -12,6 +12,8 @@ type t struct {
 	name        string
 	tester      Tester
 	failed      bool
+	skipped     bool
+	skipReason  string
 	msgs        []Msg
 	subtests    chan<- subtest
 	subtestDone <-chan bool
@@ -41,6 +43,8 @@ func (t *t) run() {
 	}()
 
 	defer t.lifecycle.finish()
+	// Record a body panic before cleanup: a later Goexit must not mask it.
+	defer t.recoverPanic()
 	t.tester(t)
 }
 
@@ -103,7 +107,15 @@ func (t *t) Cleanup(f func()) {
 	if t.lifecycle == nil {
 		panic("testy: Cleanup is only supported in Test and Run callbacks")
 	}
-	t.lifecycle.add(f)
+	if f == nil {
+		panic("testy: nil cleanup")
+	}
+	t.lifecycle.add(func() {
+		// Record each panic before proceeding to the remaining callbacks, which
+		// may themselves call FailNow or Skipf (Goexit).
+		defer t.recoverPanic()
+		f()
+	})
 }
 
 func (t *t) Context() context.Context {
@@ -112,3 +124,21 @@ func (t *t) Context() context.Context {
 	}
 	return t.lifecycle.ctx
 }
+
+func (t *t) recoverPanic() {
+	if err := recover(); err != nil {
+		t.Errorf("panic: %+v", err)
+	}
+}
+
+func (t *t) Skipf(format string, args ...interface{}) {
+	if !t.test() {
+		panic("testy: Skipf is only supported in Test and Run callbacks")
+	}
+	t.skipped = true
+	t.skipReason = fmt.Sprintf(format, args...)
+	t.Logf("skipped: %s", t.skipReason)
+	runtime.Goexit()
+}
+
+func (t *t) Skipped() bool { return t.skipped }

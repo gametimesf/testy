@@ -1,5 +1,5 @@
 {{define "singleResult"}}
-    <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}" id="{{anchorForResult .Package .Name}}">
+    <tr class="{{if eq .Result "passed"}}table-success{{else if eq .Result "failed"}}table-danger{{else}}table-warning{{end}}" id="{{anchorForResult .Package .Name}}">
         {{- /*gotype: github.com/gametimesf/testy.TestResult*/ -}}
         <td class="nowrap">{{.Package}}</td>
         <td class="nowrap"><a href="#{{anchorForResult .Package .Name}}">{{.Name}}</a></td>
@@ -7,7 +7,7 @@
         <td class="nowrap">{{.DurHuman}}</td>
         <td>{{.Result}}</td>
         <td class="nowrap" style="color: {{if eq .Result "passed"}}green{{else}}red{{end}}">
-            {{.PassedSubtests}} / {{.FailedSubtests}} / {{.TotalSubtests}}
+            {{.PassedSubtests}} / {{.FailedSubtests}} / {{.SkippedSubtests}} / {{.TotalSubtests}}
         </td>
         <td>
         {{if .Msgs}}
@@ -58,13 +58,13 @@
                     <th scope="col" class="nowrap">Started At</th>
                     <th scope="col" class="nowrap">Duration</th>
                     <th scope="col">Result</th>
-                    <th scope="col" class="nowrap">Subtest Results (Passed / Failed / Total)</th>
+                    <th scope="col" class="nowrap">Subtest Results (Passed / Failed / Skipped / Total)</th>
                     <th scope="col">Messages</th>
                 </tr>
             </thead>
             <tbody>
             {{with .Result}}
-                <tr class="{{if eq .Result "passed"}}table-success{{else}}table-danger{{end}}" id="{{anchorForResult .Package .Name}}">
+                <tr class="{{if eq .Result "passed"}}table-success{{else if eq .Result "failed"}}table-danger{{else}}table-warning{{end}}" id="{{anchorForResult .Package .Name}}">
                     {{- /*gotype: github.com/gametimesf/testy.TestResult*/ -}}
                     <td></td>
                     <td><a href="#{{anchorForResult .Package .Name}}">{{.Name}}</a></td>
@@ -72,7 +72,7 @@
                     <td>{{.DurHuman}}</td>
                     <td>{{.Result}}</td>
                     <td class="nowrap" style="color: {{if eq .Result "passed"}}green{{else}}red{{end}}">
-                        {{.PassedSubtests}} / {{.FailedSubtests}} / {{.TotalSubtests}}
+                        {{.PassedSubtests}} / {{.FailedSubtests}} / {{.SkippedSubtests}} / {{.TotalSubtests}}
                     </td>
                     <td></td>
                 </tr>

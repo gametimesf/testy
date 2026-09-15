@@ -41,6 +41,8 @@ type Summary struct {
 	Passed int
 	// Failed is the number of tests that failed.
 	Failed int
+	// Skipped is unexecuted coverage, not included in Passed.
+	Skipped int
 }
 
 // TruncatedTimestamp returns the started timestamp truncated to second precision.
@@ -87,7 +89,7 @@ var _ DB = (*InMemoryDB)(nil)
 func (db *InMemoryDB) Enumerate(_ context.Context, _ int) (results []Summary, more bool, err error) {
 	s := make([]Summary, 0, len(db.store))
 	db.store.Iterate(func(id string, r TestResult) bool {
-		total, passed, failed := r.SumTestStats()
+		total, passed, failed, skipped := r.SumTestStatsWithSkipped()
 		s = append(s, Summary{
 			ID:      id,
 			Started: r.Started,
@@ -95,6 +97,7 @@ func (db *InMemoryDB) Enumerate(_ context.Context, _ int) (results []Summary, mo
 			Total:   total,
 			Passed:  passed,
 			Failed:  failed,
+			Skipped: skipped,
 		})
 		return true
 	})
