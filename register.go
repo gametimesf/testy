@@ -26,12 +26,24 @@ import (
 //
 //	var _ = testy.Test("my test", func(t testy.TestingT){})
 func Test(name string, tester Tester) any {
+	return registerTest(getCallerPackage(), name, tester, false)
+}
+
+// ConcurrentTest opts an independent top-level case into bounded concurrency.
+// Its inputs/resources must not race other concurrent cases. Ordered Run children
+// remain sequential in hosted mode; this does not activate nested Parallel calls.
+// Native RunAsTest uses Go's -parallel limit. Hosted runners must explicitly
+// supply a shared CaseExecutor; without one this registration remains serial.
+func ConcurrentTest(name string, tester Tester) any {
+	return registerTest(getCallerPackage(), name, tester, true)
+}
+
+func registerTest(pkg, name string, tester Tester, concurrent bool) any {
 	if tester == nil {
 		panic(fmt.Sprintf("test %s has nil test function", name))
 	}
 
 	name = strings.Map(sanitizeName, name)
-	pkg := getCallerPackage()
 	pkgTests := getPackageTests(pkg)
 
 	if _, exists := pkgTests.tests[name]; exists {
@@ -39,9 +51,10 @@ func Test(name string, tester Tester) any {
 	}
 
 	pkgTests.tests[name] = testCase{
-		Package: pkg,
-		Name:    name,
-		tester:  tester,
+		Package:    pkg,
+		Name:       name,
+		tester:     tester,
+		Concurrent: concurrent,
 	}
 
 	return nil

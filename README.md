@@ -41,8 +41,8 @@ Legacy Before/After hooks are not resource scopes: migrate resource acquisition
 into a Test/Run callback before using the lifecycle helpers.
 
 Use ordinary named `t.Run` cases (or `TestEach`) for repeated contracts. Hosted
-execution can run packages concurrently and remains serial inside each package; `Parallel` is
-only effective with `RunAsTest`. Do not make acceptance correctness depend on
+execution keeps steps serial within each case; `Parallel` is only effective with
+`RunAsTest`. Independent top-level cases can explicitly opt in as described below. Do not make acceptance correctness depend on
 subtest scheduling, and do not use a parent's `defer` to release resources needed
 by native parallel children. Cleanup waits for those children in native runs.
 These callbacks cannot recover resources after process termination; persistent
@@ -66,3 +66,39 @@ consumers must handle incomplete coverage explicitly before enabling skips.
 Any `Fail`, `Errorf`, fatal error or panic, including during cleanup, remains a
 failure. A prerequisite-specific best-effort cleanup policy must report warnings
 explicitly instead of weakening these generic failure semantics.
+
+## Bounded independent cases
+
+Register an independent case with `ConcurrentTest(name, tester)` instead of
+`Test`. This is an author declaration that its fixture IDs, mutations and hooks
+are safe to overlap with other opted-in cases. Never split dependent steps merely
+to get concurrency: `t.Run` children still execute sequentially in hosted mode.
+
+Create **one** `executor := testy.NewCaseExecutor(2)` per hosted worker and share
+it in `RunOptions{CaseExecutor: executor}` across all `RunWithContext` or
+`RunPackageWithOptions` calls. A case owns admission from `BeforeTest` through
+body, children, cleanup and `AfterTest`. Non-opted-in cases and package hooks take
+exclusive admission, preventing overlap with other cases in the same executor.
+Package teardown waits for all of its admitted work. Hooks themselves are still
+legacy non-resource scopes; migrate fixture acquisition into case callbacks.
+
+A nil executor preserves existing serial-in-package behavior and existing package
+concurrency. An executor of size one serializes all shared case lifecycles.
+Native `RunAsTest` uses Go's `-parallel` limit for `ConcurrentTest`; existing manual
+`Parallel` semantics are unchanged. Native `AfterPackage` now runs in enclosing
+Go test cleanup, after parallel children and their cleanup, without changing test
+names. A native bootstrap should contain one registered package, as before.
+
+`RunPackageWithOptions(ctx, packageName, opts)` propagates caller cancellation,
+then **waits** for admitted cases, their cleanup and hooks before returning
+`ctx.Err()`. It cannot preempt non-cooperative callbacks or clean up after a killed
+process. Cleanup I/O needs a fresh bounded context. Infra retries can still repeat
+side effects; orchestration must not claim exactly-once execution.
+
+The executor is not a fleet-wide limit. Deployment must bound simultaneous worker
+replicas, surge and other test runners before increasing capacity. Keep a serial
+rollback and drain old workers before enabling overlap. `ListCases` exposes a
+copy of canonical case identities/indices and opt-in flags; reports retain this
+order regardless of completion order. `TestResult.QueueDur` records delay from
+case discovery after package setup to admission; `Dur` covers the admitted case
+lifecycle, including its test hooks, separately from that queue delay.
