@@ -102,3 +102,11 @@ copy of canonical case identities/indices and opt-in flags; reports retain this
 order regardless of completion order. `TestResult.QueueDur` records delay from
 case discovery after package setup to admission; `Dur` covers the admitted case
 lifecycle, including its test hooks, separately from that queue delay.
+
+A hosted caller may supply `RunOptions.CaseOrder[pkg]` as an immutable complete
+permutation of current case names (for example, a duration-based snapshot recorded
+by an external workflow). Testy does no history I/O and reads no scheduling clock.
+This changes admission order only: returned cases retain canonical indices/names,
+children remain ordered, and the shared executor still covers each entire lifecycle.
+Missing hints use canonical order. Invalid/duplicate/stale hints are ignored as a
+whole with a package diagnostic, never by dropping or duplicating selected tests.
