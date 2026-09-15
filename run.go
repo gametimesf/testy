@@ -21,6 +21,10 @@ type RunOptions struct {
 	// CaseExecutor is shared across package activities in one worker. Nil keeps
 	// case execution serial and preserves existing package concurrency behavior.
 	CaseExecutor *CaseExecutor
+	// CaseOrder is an optional immutable complete permutation of case names per
+	// package. It changes admission order only, never result identity or steps.
+	// Missing/invalid hints retain canonical order and invalid hints are reported.
+	CaseOrder map[string][]string
 }
 
 // PackageSpec describes a package registered with testy.
@@ -263,9 +267,13 @@ func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, o
 	var cases []testCase
 	pkgTests.tests.Iterate(func(_ string, test testCase) bool { cases = append(cases, test); return true })
 	result.Subtests = make([]TestResult, len(cases))
+	order, valid := caseDispatchOrder(cases, opts.CaseOrder[pkg])
+	if !valid {
+		result.Msgs = append(result.Msgs, Msg{Level: LevelInfo, Msg: "case scheduling hint ignored: not a complete permutation of current cases"})
+	}
 	var wg sync.WaitGroup
 	queuedAt := time.Now()
-	for i := range cases {
+	for _, i := range order {
 		if beforeErr != nil {
 			result.Subtests[i] = failedCase(pkg, cases[i].Name, start, helper.msgs, beforeErr)
 			continue
@@ -285,7 +293,8 @@ func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, o
 			run(i, release, wait)
 			continue
 		}
-		// Admission follows canonical order; only admitted cases own goroutines.
+		// Admission follows the supplied snapshot; results stay in canonical order.
+		// Only admitted cases own goroutines.
 		// Exclusive admission waits for existing lifecycle owners to drain.
 		wg.Add(1)
 		go func(i int, release func(), wait time.Duration) { defer wg.Done(); run(i, release, wait) }(i, release, wait)
