@@ -21,9 +21,10 @@ type testPkg struct {
 }
 
 type testCase struct {
-	Package string
-	Name    string
-	tester  Tester
+	Concurrent bool
+	Package    string
+	Name       string
+	tester     Tester
 }
 
 // Tester is a thing that runs a test.
@@ -48,6 +49,9 @@ type TestResult struct {
 	Dur time.Duration
 	// DurHuman is how long the test took in human-readable form.
 	DurHuman string
+	// QueueDur measures case admission delay after package setup, separate from
+	// Dur, which includes setup/body/children/cleanup and AfterTest.
+	QueueDur time.Duration
 	// Subtests contains the test result of every test this test started via Run or TestEach.
 	Subtests []TestResult
 }
