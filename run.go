@@ -259,8 +259,15 @@ func runPackage(pkg string, pkgTests *testPkg) TestResult {
 func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, opts RunOptions) TestResult {
 	start := time.Now()
 	result := TestResult{Package: pkg, Name: "Package", Started: start}
+	executor, releasePackage, admissionErr := opts.CaseExecutor.acquirePackage(ctx, pkg)
+	if admissionErr == nil {
+		defer releasePackage()
+	}
 	helper := &t{}
-	beforeErr := runPackageHook(ctx, opts.CaseExecutor, "before package", pkgTests.BeforePackage, helper)
+	beforeErr := admissionErr
+	if beforeErr == nil {
+		beforeErr = runPackageHook(ctx, executor, "before package", pkgTests.BeforePackage, helper)
+	}
 	if beforeErr != nil {
 		result.Msgs = append(result.Msgs, Msg{Msg: beforeErr.Error(), Level: LevelError})
 	}
@@ -278,7 +285,7 @@ func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, o
 			result.Subtests[i] = failedCase(pkg, cases[i].Name, start, helper.msgs, beforeErr)
 			continue
 		}
-		release, err := opts.CaseExecutor.acquire(ctx, cases[i].Concurrent)
+		release, err := executor.acquire(ctx, cases[i].Concurrent)
 		if err != nil {
 			result.Subtests[i] = failedCase(pkg, cases[i].Name, time.Now(), nil, err)
 			continue
@@ -301,7 +308,10 @@ func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, o
 	}
 	wg.Wait()
 	// Teardown must still run after cancellation, using a fresh admission context.
-	afterErr := runPackageHook(context.Background(), opts.CaseExecutor, "after package", pkgTests.AfterPackage, helper)
+	var afterErr error
+	if admissionErr == nil {
+		afterErr = runPackageHook(context.Background(), executor, "after package", pkgTests.AfterPackage, helper)
+	}
 	if afterErr != nil {
 		message := Msg{Msg: afterErr.Error(), Level: LevelError}
 		result.Msgs = append(result.Msgs, message)

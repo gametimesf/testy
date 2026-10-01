@@ -74,16 +74,26 @@ Register an independent case with `ConcurrentTest(name, tester)` instead of
 are safe to overlap with other opted-in cases. Never split dependent steps merely
 to get concurrency: `t.Run` children still execute sequentially in hosted mode.
 
-Create **one** `executor := testy.NewCaseExecutor(2)` per hosted worker and share
-it in `RunOptions{CaseExecutor: executor}` across all `RunWithContext` or
-`RunPackageWithOptions` calls. A case owns admission from `BeforeTest` through
-body, children, cleanup and `AfterTest`. Non-opted-in cases and package hooks take
-exclusive admission, preventing overlap with other cases in the same executor.
-Package teardown waits for all of its admitted work. Hooks themselves are still
-legacy non-resource scopes; migrate fixture acquisition into case callbacks.
+Create **one** executor per hosted worker and share it in
+`RunOptions{CaseExecutor: executor}` across all `RunWithContext` or
+`RunPackageWithOptions` calls. Choose the admission boundary explicitly:
 
-A nil executor preserves existing serial-in-package behavior and existing package
-concurrency. An executor of size one serializes all shared case lifecycles.
+- `NewPackageCaseExecutor(4, 2)` admits up to four lifecycles across the worker,
+  with at most two independent cases within a package. Ordinary cases and hooks
+  exclude work only within their package, preserving overlap with other packages.
+  Invocations of the same package serialize through `AfterPackage`, including
+  across runs. Packages that conflict on shared resources must not be scheduled
+  together; the executor does not infer resource ownership.
+- `NewCaseExecutor(2)` retains worker-wide exclusivity for ordinary cases and
+  hooks. `NewCaseExecutor(1)` serializes every shared lifecycle.
+- A nil executor retains serial-in-package behavior and existing package overlap,
+  without a shared lifecycle bound or same-package invocation lock.
+
+A case owns admission from `BeforeTest` through body, children, cleanup and
+`AfterTest`. Package teardown waits for all of its admitted work. Hooks themselves
+are still legacy non-resource scopes; migrate fixture acquisition into cases.
+With `NewPackageCaseExecutor(4, 1)`, cases stay serial within each package while
+up to four different packages can progress. The two limits are **not multiplied**.
 Native `RunAsTest` uses Go's `-parallel` limit for `ConcurrentTest`; existing manual
 `Parallel` semantics are unchanged. Native `AfterPackage` now runs in enclosing
 Go test cleanup, after parallel children and their cleanup, without changing test
