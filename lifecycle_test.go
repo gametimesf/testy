@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -101,6 +102,46 @@ func TestNativeLifecycle(t *testing.T) {
 				t.Fatalf("context lifecycle: %s", output)
 			}
 		})
+	}
+}
+
+// A subprocess receives a real SIGINT while a case runs: the case's context is
+// canceled, its cleanup runs, the case that had not started is skipped, and the
+// run still fails.
+func TestNativeInterruptRunsCleanup(t *testing.T) {
+	if os.Getenv("TESTY_INTERRUPT_HELPER") != "" {
+		pkg := &testPkg{tests: orderedmap.OrderedMap[string, testCase]{}}
+		pkg.tests["a-running"] = testCase{Name: "a-running", tester: func(tt TestingT) {
+			Cleanup(tt, func() { tt.Log("cleanup-marker:running") })
+			_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+			select {
+			case <-Context(tt).Done():
+				tt.Log("context-marker:canceled")
+			case <-time.After(10 * time.Second):
+				tt.Fatal("context not canceled by interrupt")
+			}
+		}}
+		pkg.tests["b-later"] = testCase{Name: "b-later", tester: func(tt TestingT) {
+			tt.Log("ran-marker:later")
+		}}
+		instance = testy{tests: orderedmap.OrderedMap[string, *testPkg]{"interrupt": pkg}}
+		RunAsTest(t)
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNativeInterruptRunsCleanup$", "-test.v")
+	cmd.Env = append(os.Environ(), "TESTY_INTERRUPT_HELPER=1")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("interrupted run passed: %s", output)
+	}
+	text := string(output)
+	for _, marker := range []string{"context-marker:canceled", "cleanup-marker:running", "--- SKIP: TestNativeInterruptRunsCleanup/b-later"} {
+		if !strings.Contains(text, marker) {
+			t.Fatalf("missing %q: %s", marker, output)
+		}
+	}
+	if strings.Contains(text, "ran-marker:later") {
+		t.Fatalf("case started after interrupt: %s", output)
 	}
 }
 
