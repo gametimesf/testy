@@ -70,20 +70,30 @@ func ListCases(pkg string) ([]CaseSpec, error) {
 // Individual tests in a package may still be run using the standard -run test flag.
 // See `go help testflag` for more information.
 //
-// The first SIGINT or SIGTERM cancels every running test's Context so it can
-// unwind through its cleanup, skips tests that have not started, and fails the
-// run. A second signal kills the process as usual.
+// While it runs, the first SIGINT or SIGTERM cancels every running test's
+// Context so it can unwind through its cleanup, skips tests and packages that
+// have not started, and fails the run. A second signal kills the process as usual.
 //
 // TODO: shuffle test execution order (see -shuffle in `go help testflag`)
 func RunAsTest(t *testing.T) {
 	t.Helper()
-	ctx := interrupted()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	// Registered first, so it runs after every test and package hook.
 	t.Cleanup(func() {
-		if ctx.Err() != nil {
+		interrupted := ctx.Err() != nil
+		stop()
+		if interrupted {
 			t.Error("testy: run interrupted")
 		}
 	})
 	instance.tests.Iterate(func(pkg string, pkgTests *testPkg) bool {
+		if ctx.Err() != nil {
+			return false
+		}
 		// we have to hold onto any panics here to be able to run AfterPackage
 		var beforePkgErr any
 		t.Cleanup(func() {
@@ -145,17 +155,6 @@ func RunAsTest(t *testing.T) {
 		return true
 	})
 }
-
-// interrupted is canceled by the first SIGINT or SIGTERM a native run receives.
-// It then stops listening, so a second signal takes the default action.
-var interrupted = sync.OnceValue(func() context.Context {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
-	return ctx
-})
 
 // Run runs all registered tests and returns result information about them.
 //
