@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +102,92 @@ func TestNativeLifecycle(t *testing.T) {
 				t.Fatalf("context lifecycle: %s", output)
 			}
 		})
+	}
+}
+
+// A subprocess receives a real SIGINT while a case runs: the case's context is
+// canceled, its cleanup runs, the case that had not started is skipped, and the
+// run still fails.
+func TestNativeInterruptRunsCleanup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs SIGINT")
+	}
+	if os.Getenv("TESTY_INTERRUPT_HELPER") != "" {
+		pkg := &testPkg{tests: orderedmap.OrderedMap[string, testCase]{}}
+		pkg.tests["a-running"] = testCase{Name: "a-running", tester: func(tt TestingT) {
+			Cleanup(tt, func() { tt.Log("cleanup-marker:running") })
+			interruptSelf(tt)
+			select {
+			case <-Context(tt).Done():
+				tt.Log("context-marker:canceled")
+			case <-time.After(10 * time.Second):
+				tt.Fatal("context not canceled by interrupt")
+			}
+		}}
+		pkg.tests["b-later"] = testCase{Name: "b-later", tester: func(tt TestingT) {
+			tt.Log("ran-marker:later")
+		}}
+		laterPkg := &testPkg{tests: orderedmap.OrderedMap[string, testCase]{}}
+		laterPkg.BeforePackage = func(TestingT) { t.Log("hook-marker:later") }
+		laterPkg.tests["c-later-package"] = testCase{Name: "c-later-package", tester: func(TestingT) {}}
+		instance = testy{tests: orderedmap.OrderedMap[string, *testPkg]{"a-interrupt": pkg, "b-later": laterPkg}}
+		RunAsTest(t)
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNativeInterruptRunsCleanup$", "-test.v")
+	cmd.Env = append(os.Environ(), "TESTY_INTERRUPT_HELPER=1")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("interrupted run passed: %s", output)
+	}
+	text := string(output)
+	for _, marker := range []string{"context-marker:canceled", "cleanup-marker:running", "--- SKIP: TestNativeInterruptRunsCleanup/b-later"} {
+		if !strings.Contains(text, marker) {
+			t.Fatalf("missing %q: %s", marker, output)
+		}
+	}
+	for _, marker := range []string{"ran-marker:later", "hook-marker:later"} {
+		if strings.Contains(text, marker) {
+			t.Fatalf("%q after interrupt: %s", marker, output)
+		}
+	}
+}
+
+// After RunAsTest returns, testy must stop handling signals, so a later SIGINT
+// takes the default action instead of canceling a finished run's context.
+func TestNativeInterruptHandlerEndsWithRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs SIGINT")
+	}
+	if os.Getenv("TESTY_INTERRUPT_AFTER_RUN") != "" {
+		pkg := &testPkg{tests: orderedmap.OrderedMap[string, testCase]{}}
+		pkg.tests["done"] = testCase{Name: "done", tester: func(TestingT) {}}
+		instance = testy{tests: orderedmap.OrderedMap[string, *testPkg]{"done": pkg}}
+		t.Run("suite", RunAsTest)
+		interruptSelf(t)
+		time.Sleep(2 * time.Second)
+		t.Log("survived-marker")
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNativeInterruptHandlerEndsWithRun$", "-test.v")
+	cmd.Env = append(os.Environ(), "TESTY_INTERRUPT_AFTER_RUN=1")
+	output, err := cmd.CombinedOutput()
+	if err == nil || strings.Contains(string(output), "survived-marker") {
+		t.Fatalf("SIGINT after the run did not stop the process: %v: %s", err, output)
+	}
+}
+
+func interruptSelf(t interface {
+	Helper()
+	Fatal(args ...any)
+}) {
+	t.Helper()
+	self, err := os.FindProcess(os.Getpid())
+	if err == nil {
+		err = self.Signal(os.Interrupt)
+	}
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
