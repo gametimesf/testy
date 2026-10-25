@@ -29,12 +29,16 @@ func NewCaseExecutor(limit int) *CaseExecutor {
 }
 
 // NewPackageCaseExecutor preserves overlap between packages while bounding the
-// total admitted lifecycles to totalLimit. Within each package, at most
-// packageLimit ConcurrentTest cases overlap; ordinary cases and hooks exclude
-// other work in that package. Repeated invocations of the same package serialize
-// through AfterPackage so their package-scoped setup/teardown cannot interleave.
-// Limits below one normalize to one. This is not a cross-package resource lock:
-// callers must not run packages with conflicting shared mutations concurrently.
+// total admitted lifecycles to totalLimit. Within each package invocation, at
+// most packageLimit ConcurrentTest cases overlap; ordinary cases and hooks
+// exclude other work in that invocation. Repeated invocations of the same
+// package serialize through AfterPackage so their package-scoped setup/teardown
+// cannot interleave, unless the package is declared with ConcurrentPackage, has
+// no BeforePackage or AfterPackage, and registers only ConcurrentTest cases.
+// Such invocations overlap, each with its own packageLimit, all within the
+// shared totalLimit. Limits below one normalize to one. This is not a
+// cross-package resource lock: callers must not run packages with conflicting
+// shared mutations concurrently.
 func NewPackageCaseExecutor(totalLimit, packageLimit int) *CaseExecutor {
 	if totalLimit < 1 {
 		totalLimit = 1
@@ -52,22 +56,31 @@ func NewPackageCaseExecutor(totalLimit, packageLimit int) *CaseExecutor {
 	}
 }
 
-func (e *CaseExecutor) acquirePackage(ctx context.Context, pkg string) (*CaseExecutor, func(), error) {
+// acquirePackage admits one invocation of pkg and returns the scope its cases
+// and hooks acquire from. Serialized invocations share one scope per package
+// name and hold its run gate through AfterPackage. An overlapping invocation
+// gets a private scope instead: packageLimit and ordinary-case exclusivity
+// apply within that invocation, and the worker budget is shared with every
+// other scope. Overlap is a static property of a registered package, so one
+// package name never mixes serialized and overlapping invocations.
+func (e *CaseExecutor) acquirePackage(ctx context.Context, pkg string, overlap bool) (*CaseExecutor, func(), error) {
 	if e == nil || e.packages == nil {
 		return e, func() {}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	if overlap {
+		return e.newPackageScope(), func() {}, nil
 	}
 	e.mu.Lock()
 	scope := e.packages[pkg]
 	if scope == nil {
-		scope = NewCaseExecutor(e.packageLimit)
-		scope.budget = e.budget
+		scope = e.newPackageScope()
 		scope.runGate = make(chan struct{}, 1)
 		e.packages[pkg] = scope
 	}
 	e.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return nil, nil, err
-	}
 	select {
 	case scope.runGate <- struct{}{}:
 		if err := ctx.Err(); err != nil {
@@ -78,6 +91,12 @@ func (e *CaseExecutor) acquirePackage(ctx context.Context, pkg string) (*CaseExe
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
 	}
+}
+
+func (e *CaseExecutor) newPackageScope() *CaseExecutor {
+	scope := NewCaseExecutor(e.packageLimit)
+	scope.budget = e.budget
+	return scope
 }
 
 // Serialize admission, not execution, so two exclusive waiters cannot each hold

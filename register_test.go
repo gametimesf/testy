@@ -107,3 +107,15 @@ func TestAfterTest(t *testing.T) {
 		AfterTest(func(t TestingT) {})
 	})
 }
+
+func TestConcurrentPackage(t *testing.T) {
+	previous := instance
+	defer func() { instance = previous }()
+	instance = testy{}
+
+	ConcurrentPackage()
+	assert.NotPanics(t, func() { ConcurrentPackage() })
+
+	assert.Contains(t, instance.tests, "github.com/gametimesf/testy")
+	assert.True(t, instance.tests["github.com/gametimesf/testy"].ConcurrentInvocations)
+}

@@ -18,6 +18,8 @@ type testPkg struct {
 	AfterPackage  Tester
 	BeforeTest    Tester
 	AfterTest     Tester
+	// ConcurrentInvocations records a ConcurrentPackage declaration.
+	ConcurrentInvocations bool
 }
 
 type testCase struct {
