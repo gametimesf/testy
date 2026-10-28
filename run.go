@@ -285,7 +285,13 @@ func runPackage(pkg string, pkgTests *testPkg) TestResult {
 func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, opts RunOptions) TestResult {
 	start := time.Now()
 	result := TestResult{Package: pkg, Name: "Package", Started: start}
-	executor, releasePackage, admissionErr := opts.CaseExecutor.acquirePackage(ctx, pkg)
+	var cases []testCase
+	pkgTests.tests.Iterate(func(_ string, test testCase) bool { cases = append(cases, test); return true })
+	overlap, ignored := invocationOverlap(pkgTests, cases)
+	if ignored != "" {
+		result.Msgs = append(result.Msgs, Msg{Level: LevelInfo, Msg: ignored})
+	}
+	executor, releasePackage, admissionErr := opts.CaseExecutor.acquirePackage(ctx, pkg, overlap)
 	if admissionErr == nil {
 		defer releasePackage()
 	}
@@ -297,8 +303,6 @@ func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, o
 	if beforeErr != nil {
 		result.Msgs = append(result.Msgs, Msg{Msg: beforeErr.Error(), Level: LevelError})
 	}
-	var cases []testCase
-	pkgTests.tests.Iterate(func(_ string, test testCase) bool { cases = append(cases, test); return true })
 	result.Subtests = make([]TestResult, len(cases))
 	order, valid := caseDispatchOrder(cases, opts.CaseOrder[pkg])
 	if !valid {
@@ -360,6 +364,26 @@ func runPackageWithOptions(ctx context.Context, pkg string, pkgTests *testPkg, o
 	result.Dur = time.Since(start).Round(time.Millisecond)
 	result.DurHuman = result.Dur.String()
 	return result
+}
+
+// invocationOverlap reports whether invocations of a package may overlap in one
+// process: it must be declared with ConcurrentPackage, have no package hooks to
+// interleave and contain only ConcurrentTest cases. A declaration that does not
+// qualify keeps the serialized behavior and returns the diagnostic to report.
+func invocationOverlap(pkgTests *testPkg, cases []testCase) (bool, string) {
+	if !pkgTests.ConcurrentInvocations {
+		return false, ""
+	}
+	const ignored = "concurrent package declaration ignored: "
+	if pkgTests.BeforePackage != nil || pkgTests.AfterPackage != nil {
+		return false, ignored + "package has BeforePackage or AfterPackage"
+	}
+	for _, test := range cases {
+		if !test.Concurrent {
+			return false, ignored + "case " + test.Name + " is not a ConcurrentTest"
+		}
+	}
+	return true, ""
 }
 
 func runPackageHook(ctx context.Context, executor *CaseExecutor, label string, hook Tester, helper *t) error {

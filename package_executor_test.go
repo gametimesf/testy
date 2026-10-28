@@ -3,6 +3,7 @@ package testy
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -126,7 +127,7 @@ func TestPackageExecutorWorkerBudgetIncludesHooksAndCleanup(t *testing.T) {
 
 func TestPackageExecutorSamePackageWaitCancelsWithoutRunningHooks(t *testing.T) {
 	executor := NewPackageCaseExecutor(4, 2)
-	_, release, err := executor.acquirePackage(context.Background(), "shared")
+	_, release, err := executor.acquirePackage(context.Background(), "shared", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +144,7 @@ func TestPackageExecutorSamePackageWaitCancelsWithoutRunningHooks(t *testing.T) 
 		t.Fatalf("result=%+v invoked=%d", result, invoked.Load())
 	}
 	// A different package is still independently admitted.
-	_, otherRelease, err := executor.acquirePackage(context.Background(), "other")
+	_, otherRelease, err := executor.acquirePackage(context.Background(), "other", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,12 +153,12 @@ func TestPackageExecutorSamePackageWaitCancelsWithoutRunningHooks(t *testing.T) 
 
 func TestPackageExecutorBudgetCancellationRollsBackPackageSlots(t *testing.T) {
 	executor := NewPackageCaseExecutor(1, 2)
-	first, releaseFirst, err := executor.acquirePackage(context.Background(), "first")
+	first, releaseFirst, err := executor.acquirePackage(context.Background(), "first", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer releaseFirst()
-	second, releaseSecond, err := executor.acquirePackage(context.Background(), "second")
+	second, releaseSecond, err := executor.acquirePackage(context.Background(), "second", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,4 +263,166 @@ func TestPackageExecutorOrdinaryCaseExcludesConcurrentSiblings(t *testing.T) {
 	if r.Result != ResultPassed || active.Load() != 0 {
 		t.Fatalf("result=%+v active=%d", r, active.Load())
 	}
+}
+
+// Same-package invocations overlap only when the package is declared, hookless
+// and all-ConcurrentTest. Each overlapping invocation keeps its own package limit
+// and every invocation shares the worker budget.
+func TestPackageExecutorSamePackageInvocations(t *testing.T) {
+	for _, tc := range []struct {
+		name                           string
+		total, limit, invocations      int
+		declared, before, after, plain bool
+		wantActive                     int32
+		wantMsg                        string
+	}{
+		{name: "declared package overlaps within its package limit", total: 4, limit: 1, invocations: 2, declared: true, wantActive: 2},
+		{name: "package limit applies per invocation", total: 8, limit: 2, invocations: 2, declared: true, wantActive: 4},
+		{name: "shared budget bounds overlapping invocations", total: 2, limit: 2, invocations: 3, declared: true, wantActive: 2},
+		{name: "undeclared package serializes", total: 4, limit: 1, invocations: 2, wantActive: 1},
+		{name: "BeforePackage serializes", total: 4, limit: 1, invocations: 2, declared: true, before: true, wantActive: 1, wantMsg: "BeforePackage or AfterPackage"},
+		{name: "AfterPackage serializes", total: 4, limit: 1, invocations: 2, declared: true, after: true, wantActive: 1, wantMsg: "BeforePackage or AfterPackage"},
+		{name: "ordinary case serializes", total: 4, limit: 1, invocations: 2, declared: true, plain: true, wantActive: 1, wantMsg: "case b is not a ConcurrentTest"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := NewPackageCaseExecutor(tc.total, tc.limit)
+			var active, maximum atomic.Int32
+			entered := make(chan struct{}, 16)
+			release := make(chan struct{})
+			var once sync.Once
+			defer once.Do(func() { close(release) })
+			tester := func(TestingT) {
+				n := active.Add(1)
+				defer active.Add(-1)
+				for old := maximum.Load(); n > old; old = maximum.Load() {
+					if maximum.CompareAndSwap(old, n) {
+						break
+					}
+				}
+				entered <- struct{}{}
+				<-release
+			}
+			pkg := &testPkg{ConcurrentInvocations: tc.declared, tests: orderedmap.OrderedMap[string, testCase]{
+				"a": {Name: "a", Concurrent: true, tester: tester},
+				"b": {Name: "b", Concurrent: !tc.plain, tester: tester},
+			}}
+			if tc.before {
+				pkg.BeforePackage = func(TestingT) {}
+			}
+			if tc.after {
+				pkg.AfterPackage = func(TestingT) {}
+			}
+			results := make(chan TestResult, tc.invocations)
+			for i := 0; i < tc.invocations; i++ {
+				go func() {
+					results <- runPackageWithOptions(context.Background(), "shared", pkg, RunOptions{CaseExecutor: executor})
+				}()
+			}
+			for i := int32(0); i < tc.wantActive; i++ {
+				select {
+				case <-entered:
+				case <-time.After(2 * time.Second):
+					t.Fatalf("only %d of %d expected lifecycles were admitted", i, tc.wantActive)
+				}
+			}
+			select {
+			case <-entered:
+				t.Fatalf("admitted more than %d lifecycles", tc.wantActive)
+			case <-time.After(50 * time.Millisecond):
+			}
+			once.Do(func() { close(release) })
+			for i := 0; i < tc.invocations; i++ {
+				select {
+				case r := <-results:
+					if r.Result != ResultPassed || len(r.Subtests) != 2 {
+						t.Fatalf("result=%+v", r)
+					}
+					probe, want := tc.wantMsg, tc.wantMsg != ""
+					if !want {
+						probe = "declaration ignored"
+					}
+					if hasMsg(r.Msgs, probe) != want {
+						t.Fatalf("diagnostic %q want=%v msgs=%+v", probe, want, r.Msgs)
+					}
+				case <-time.After(2 * time.Second):
+					t.Fatal("invocations did not drain")
+				}
+			}
+			if maximum.Load() != tc.wantActive || len(executor.budget) != 0 {
+				t.Fatalf("maximum=%d budget=%d", maximum.Load(), len(executor.budget))
+			}
+		})
+	}
+}
+
+// A canceled waiter runs no hooks or cases and returns every held permit,
+// whether it waited for the package gate or for the shared worker budget.
+func TestPackageExecutorSamePackageWaitCancellationRollsBack(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		before bool
+		hold   func(*testing.T, *CaseExecutor) func()
+	}{
+		{name: "overlapping invocation waiting on worker budget", hold: func(t *testing.T, executor *CaseExecutor) func() {
+			scope, releaseScope, err := executor.acquirePackage(context.Background(), "other", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			releaseCase, err := scope.acquire(context.Background(), false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return func() { releaseCase(); releaseScope() }
+		}},
+		{name: "ineligible declaration waiting on package gate", before: true, hold: func(t *testing.T, executor *CaseExecutor) func() {
+			_, releaseScope, err := executor.acquirePackage(context.Background(), "shared", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return releaseScope
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := NewPackageCaseExecutor(1, 1)
+			var invoked atomic.Int32
+			invoke := func(TestingT) { invoked.Add(1) }
+			pkg := &testPkg{ConcurrentInvocations: true, tests: orderedmap.OrderedMap[string, testCase]{
+				"a": {Name: "a", Concurrent: true, tester: invoke},
+				"b": {Name: "b", Concurrent: true, tester: invoke},
+			}}
+			if tc.before {
+				pkg.BeforePackage = invoke
+			}
+			releaseHold := tc.hold(t, executor)
+			held := len(executor.budget)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+			r := runPackageWithOptions(ctx, "shared", pkg, RunOptions{CaseExecutor: executor})
+			if r.Result != ResultFailed || len(r.Subtests) != 2 || invoked.Load() != 0 {
+				t.Fatalf("result=%+v invoked=%d", r, invoked.Load())
+			}
+			for _, child := range r.Subtests {
+				if child.Result != ResultFailed {
+					t.Fatalf("canceled case reported %+v", child)
+				}
+			}
+			if len(executor.budget) != held {
+				t.Fatalf("budget=%d want %d", len(executor.budget), held)
+			}
+			releaseHold()
+			again := runPackageWithOptions(context.Background(), "shared", pkg, RunOptions{CaseExecutor: executor})
+			if again.Result != ResultPassed || len(executor.budget) != 0 {
+				t.Fatalf("result=%+v budget=%d", again, len(executor.budget))
+			}
+		})
+	}
+}
+
+func hasMsg(msgs []Msg, substr string) bool {
+	for _, m := range msgs {
+		if strings.Contains(m.Msg, substr) {
+			return true
+		}
+	}
+	return false
 }

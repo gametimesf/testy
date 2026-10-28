@@ -38,6 +38,27 @@ func ConcurrentTest(name string, tester Tester) any {
 	return registerTest(getCallerPackage(), name, tester, true)
 }
 
+// ConcurrentPackage declares that independent invocations of the calling package
+// may overlap within one process, for example two hosted runs dispatching the
+// same package to one worker. ConcurrentTest promises a case is safe beside its
+// siblings; this additionally promises each case is safe beside another copy of
+// itself, so fixtures must be generated per invocation rather than fixed.
+//
+// The declaration applies only while the package has no BeforePackage or
+// AfterPackage and every registered case is a ConcurrentTest. Otherwise
+// invocations keep serializing through AfterPackage and each package result
+// carries an informational diagnostic. Only NewPackageCaseExecutor has a
+// same-package gate to skip; other executors, a nil executor and native
+// RunAsTest are unaffected. Calling it more than once is harmless.
+//
+// The return value may be discarded (and is always nil); it is provided to simplify writing test code, like so:
+//
+//	var _ = testy.ConcurrentPackage()
+func ConcurrentPackage() any {
+	getPackageTests(getCallerPackage()).ConcurrentInvocations = true
+	return nil
+}
+
 func registerTest(pkg, name string, tester Tester, concurrent bool) any {
 	if tester == nil {
 		panic(fmt.Sprintf("test %s has nil test function", name))

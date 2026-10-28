@@ -82,8 +82,9 @@ Create **one** executor per hosted worker and share it in
   with at most two independent cases within a package. Ordinary cases and hooks
   exclude work only within their package, preserving overlap with other packages.
   Invocations of the same package serialize through `AfterPackage`, including
-  across runs. Packages that conflict on shared resources must not be scheduled
-  together; the executor does not infer resource ownership.
+  across runs, unless the package opts in as described below. Packages that
+  conflict on shared resources must not be scheduled together; the executor
+  does not infer resource ownership.
 - `NewCaseExecutor(2)` retains worker-wide exclusivity for ordinary cases and
   hooks. `NewCaseExecutor(1)` serializes every shared lifecycle.
 - A nil executor retains serial-in-package behavior and existing package overlap,
@@ -120,3 +121,36 @@ This changes admission order only: returned cases retain canonical indices/names
 children remain ordered, and the shared executor still covers each entire lifecycle.
 Missing hints use canonical order. Invalid/duplicate/stale hints are ignored as a
 whole with a package diagnostic, never by dropping or duplicating selected tests.
+
+### Overlapping invocations of one package
+
+By default, two runs that dispatch the same package to one worker wait for each
+other: the second invocation starts only after the first finishes `AfterPackage`.
+A package can declare that its invocations may overlap instead:
+
+```go
+var _ = testy.ConcurrentPackage()
+```
+
+The declaration takes effect only when **both** of these hold; otherwise
+invocations keep serializing and each package result carries an informational
+`concurrent package declaration ignored` message:
+
+- the package has no `BeforePackage` and no `AfterPackage`, so there is no
+  package-scoped setup or teardown to interleave;
+- every registered case is a `ConcurrentTest`.
+
+Only `NewPackageCaseExecutor` has a same-package gate to skip. `NewCaseExecutor`,
+a nil executor and native `RunAsTest` behave as before.
+
+`ConcurrentTest` promises a case is safe beside its siblings. `ConcurrentPackage`
+additionally promises each case is safe beside another copy of itself, so its
+fixtures must be generated per invocation, never fixed IDs, users or suppliers.
+This is a separate audit, which is why it is an explicit declaration rather than
+inferred from `ConcurrentTest`.
+
+Each overlapping invocation gets its own package limit: with
+`NewPackageCaseExecutor(4, 2)`, two invocations of one package can each run two
+cases, and all of them still share the worker's four lifecycle permits. Within
+an invocation, admission, `CaseOrder`, `BeforeTest`/`AfterTest`, cleanup and
+cancellation rollback behave as for any other package.
